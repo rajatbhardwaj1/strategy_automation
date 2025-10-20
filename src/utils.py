@@ -6,7 +6,7 @@ def send_telegram_message(message):
 
 import yaml
 
-def load_config(path="config.yaml"):
+def load_config(path="src/config.yaml"):
     with open(path, "r") as f:
         config = yaml.safe_load(f)
-    return config["credentials"]
+    return config["trading"]
