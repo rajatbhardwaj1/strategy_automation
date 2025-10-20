@@ -1,3 +1,4 @@
+import pandas as pd
 import pytest
 import logging
 import os
@@ -14,6 +15,14 @@ logging.basicConfig(
     filename=LOG_FILE,
 )
 logger = logging.getLogger(__name__)
+
+class LoginError(Exception):
+    """Raised when login to Shoonya API fails."""
+    pass
+
+class NotLoggedInError(Exception):
+    """Raised when user attempts API calls before logging in."""
+    pass
 
 
 @pytest.fixture(scope="session")
@@ -66,3 +75,45 @@ def test_login_real(shoonya_api_instance):
         pytest.fail(f"Login test failed due to: {e}")
     finally:
         logger.info("=== ShoonyaAPI real login test completed ===")
+
+
+
+
+def test_place_order_real(shoonya_api_instance):
+    """
+    Integration test: place a small test order.
+    WARNING: This will place a real order! Use minimal quantity to avoid losses.
+    """
+    shoonya_api_instance.login()
+    symbol = "NIFTYBEES"   # Replace with a valid tradable symbol
+    qty = 1                 # Minimal quantity for testing
+    side = "B"              # Buy
+    order_type = "MKT"      # Market order
+
+    try:
+        response = shoonya_api_instance.place_order(symbol=symbol, qty=qty, side=side, order_type=order_type)
+        assert isinstance(response, dict), "Order response should be a dictionary"
+        assert "stat" in response, "Response missing 'stat' key"
+        print(f"Order test response: {response}")
+
+    except Exception as e:
+        logger.error("❌ Place order test failed due to: %s", e, exc_info=True)
+        pytest.fail(f"Place order test failed due to: {e}")
+
+
+def test_fetch_current_holdings_and_cash_real(shoonya_api_instance):
+    """
+    Integration test: fetch current holdings and cash.
+    """
+    shoonya_api_instance.login()
+    try:
+        holdings_df, total_cash = shoonya_api_instance.fetch_current_holdings_and_cash()
+        assert isinstance(holdings_df, pd.DataFrame), "Holdings should be a DataFrame"
+        assert isinstance(total_cash, (float, int)), "Total cash should be numeric"
+        print(f"Holdings:\n{holdings_df}\nTotal investable cash: {total_cash}")
+
+    except NotLoggedInError:
+        pytest.fail("User must be logged in to fetch holdings")
+    except Exception as e:
+        logger.error("❌ Fetch holdings test failed due to: %s", e, exc_info=True)
+        pytest.fail(f"Fetch holdings test failed due to: {e}")
