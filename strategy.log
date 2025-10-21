@@ -1,3 +1,74 @@
-16:14:57 - INFO - Successfully logged in as Shoonya RAJAT BHARDWAJ (FA352305)
-16:14:57 - WARNING - Login message for FA352305: 
-16:14:57 - INFO - No holdings found for user.
+13:59:50 - INFO - Loaded 'telegram' configuration: ['bot_token', 'chat_id']
+13:59:52 - ERROR - Failed to send Telegram message: httpx.ConnectError: 
+Traceback (most recent call last):
+  File "/Users/rajatbhardwaj.rajat/Documents/personal/.venv/lib/python3.9/site-packages/httpx/_transports/default.py", line 101, in map_httpcore_exceptions
+    yield
+  File "/Users/rajatbhardwaj.rajat/Documents/personal/.venv/lib/python3.9/site-packages/httpx/_transports/default.py", line 394, in handle_async_request
+    resp = await self._pool.handle_async_request(req)
+  File "/Users/rajatbhardwaj.rajat/Documents/personal/.venv/lib/python3.9/site-packages/httpcore/_async/connection_pool.py", line 256, in handle_async_request
+    raise exc from None
+  File "/Users/rajatbhardwaj.rajat/Documents/personal/.venv/lib/python3.9/site-packages/httpcore/_async/connection_pool.py", line 236, in handle_async_request
+    response = await connection.handle_async_request(
+  File "/Users/rajatbhardwaj.rajat/Documents/personal/.venv/lib/python3.9/site-packages/httpcore/_async/connection.py", line 101, in handle_async_request
+    raise exc
+  File "/Users/rajatbhardwaj.rajat/Documents/personal/.venv/lib/python3.9/site-packages/httpcore/_async/connection.py", line 78, in handle_async_request
+    stream = await self._connect(request)
+  File "/Users/rajatbhardwaj.rajat/Documents/personal/.venv/lib/python3.9/site-packages/httpcore/_async/connection.py", line 156, in _connect
+    stream = await stream.start_tls(**kwargs)
+  File "/Users/rajatbhardwaj.rajat/Documents/personal/.venv/lib/python3.9/site-packages/httpcore/_backends/anyio.py", line 79, in start_tls
+    raise exc
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/contextlib.py", line 135, in __exit__
+    self.gen.throw(type, value, traceback)
+  File "/Users/rajatbhardwaj.rajat/Documents/personal/.venv/lib/python3.9/site-packages/httpcore/_exceptions.py", line 14, in map_exceptions
+    raise to_exc(exc) from exc
+httpcore.ConnectError
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/rajatbhardwaj.rajat/Documents/personal/.venv/lib/python3.9/site-packages/telegram/request/_httpxrequest.py", line 279, in do_request
+    res = await self._client.request(
+  File "/Users/rajatbhardwaj.rajat/Documents/personal/.venv/lib/python3.9/site-packages/httpx/_client.py", line 1540, in request
+    return await self.send(request, auth=auth, follow_redirects=follow_redirects)
+  File "/Users/rajatbhardwaj.rajat/Documents/personal/.venv/lib/python3.9/site-packages/httpx/_client.py", line 1629, in send
+    response = await self._send_handling_auth(
+  File "/Users/rajatbhardwaj.rajat/Documents/personal/.venv/lib/python3.9/site-packages/httpx/_client.py", line 1657, in _send_handling_auth
+    response = await self._send_handling_redirects(
+  File "/Users/rajatbhardwaj.rajat/Documents/personal/.venv/lib/python3.9/site-packages/httpx/_client.py", line 1694, in _send_handling_redirects
+    response = await self._send_single_request(request)
+  File "/Users/rajatbhardwaj.rajat/Documents/personal/.venv/lib/python3.9/site-packages/httpx/_client.py", line 1730, in _send_single_request
+    response = await transport.handle_async_request(request)
+  File "/Users/rajatbhardwaj.rajat/Documents/personal/.venv/lib/python3.9/site-packages/httpx/_transports/default.py", line 394, in handle_async_request
+    resp = await self._pool.handle_async_request(req)
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/contextlib.py", line 135, in __exit__
+    self.gen.throw(type, value, traceback)
+  File "/Users/rajatbhardwaj.rajat/Documents/personal/.venv/lib/python3.9/site-packages/httpx/_transports/default.py", line 118, in map_httpcore_exceptions
+    raise mapped_exc(message) from exc
+httpx.ConnectError
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/rajatbhardwaj.rajat/Documents/personal/strategy-automation/src/utils.py", line 43, in send_telegram_message
+    asyncio.run(_send())
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/asyncio/runners.py", line 44, in run
+    return loop.run_until_complete(main)
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/asyncio/base_events.py", line 642, in run_until_complete
+    return future.result()
+  File "/Users/rajatbhardwaj.rajat/Documents/personal/strategy-automation/src/utils.py", line 38, in _send
+    await bot.send_message(chat_id=chat_id, text=message)
+  File "/Users/rajatbhardwaj.rajat/Documents/personal/.venv/lib/python3.9/site-packages/telegram/_bot.py", line 1118, in send_message
+    return await self._send_message(
+  File "/Users/rajatbhardwaj.rajat/Documents/personal/.venv/lib/python3.9/site-packages/telegram/_bot.py", line 819, in _send_message
+    result = await self._post(
+  File "/Users/rajatbhardwaj.rajat/Documents/personal/.venv/lib/python3.9/site-packages/telegram/_bot.py", line 703, in _post
+    return await self._do_post(
+  File "/Users/rajatbhardwaj.rajat/Documents/personal/.venv/lib/python3.9/site-packages/telegram/_bot.py", line 732, in _do_post
+    result = await request.post(
+  File "/Users/rajatbhardwaj.rajat/Documents/personal/.venv/lib/python3.9/site-packages/telegram/request/_baserequest.py", line 198, in post
+    result = await self._request_wrapper(
+  File "/Users/rajatbhardwaj.rajat/Documents/personal/.venv/lib/python3.9/site-packages/telegram/request/_baserequest.py", line 305, in _request_wrapper
+    code, payload = await self.do_request(
+  File "/Users/rajatbhardwaj.rajat/Documents/personal/.venv/lib/python3.9/site-packages/telegram/request/_httpxrequest.py", line 303, in do_request
+    raise NetworkError(f"httpx.{err.__class__.__name__}: {err}") from err
+telegram.error.NetworkError: httpx.ConnectError: 

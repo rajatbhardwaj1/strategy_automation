@@ -1,8 +1,10 @@
+from unittest.mock import AsyncMock
+
 import pytest
 import logging
 import os
 import time
-from src.utils import fetch_etf_data, fetch_all_etf_data
+from src.utils import fetch_etf_data, fetch_all_etf_data, send_telegram_message
 import pandas as pd
 # --- Logging Setup ---
 LOG_FILE = "strategy.log"
@@ -70,3 +72,20 @@ def test_fetch_all_etf_data_real():
     assert df["ltp"].dtype.kind in "f", "ltp column is not float"
     assert df["dma"].dtype.kind in "f", "dma column is not float"
     assert df["pct_diff"].dtype.kind in "f", "pct_diff column is not float"
+
+
+
+
+@pytest.mark.integration
+def test_send_telegram_message_real():
+    """
+    Integration test: actually sends a message via Telegram.
+    Ensure your config.yaml has valid bot_token and chat_id.
+    """
+    msg = "Testing send_telegram_message via pytest"
+
+    try:
+        send_telegram_message(msg)
+        print("✅ Telegram message sent successfully. Check your chat for verification.")
+    except Exception as e:
+        pytest.fail(f"Failed to send Telegram message: {e}")

@@ -10,7 +10,7 @@ from src.utils import fetch_all_etf_data
 
 # --- Setup Logging ---
 # We configure logging to write to a file and include timestamps/levels.
-LOGGING_FILE = "strategy.log"
+LOGGING_FILE = "shoonya_api.log"
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
@@ -54,100 +54,202 @@ class ShoonyaAPI:
     # ------------------
     # Core API Methods
     # ------------------
-
-    def login(self) -> None:
+    def login(self) -> dict:
         """
         Performs the 2FA login process with the Shoonya API.
-        Logs status and raises LoginError on failure.
+        Logs status, sends Telegram alerts on failure,
+        and returns a structured response.
+
+        Returns:
+            dict: {
+                "status": "success" | "already_logged_in" | "failed" | "error",
+                "message": str,
+                "response": Optional[dict]
+            }
         """
         if self.is_logged_in:
-            logger.info(f"User {self.user_id} is already logged in.")
-            return
+            msg = f"User {self.user_id} is already logged in."
+            logger.info(msg)
+            return {"status": "already_logged_in", "message": msg, "response": None}
 
         try:
             totp = pyotp.TOTP(self.totp_secret)
-            login_response: Optional[Dict[str, Any]] = self.api.login(
-                userid=self.user_id, password=self.password, twoFA=totp.now(),
-                vendor_code=self.vendor_key, api_secret=self.api_key, imei=self.imei
+            login_response = self.api.login(
+                userid=self.user_id,
+                password=self.password,
+                twoFA=totp.now(),
+                vendor_code=self.vendor_key,
+                api_secret=self.api_key,
+                imei=self.imei,
             )
 
-            # Check for successful login status 'Ok'
-            if login_response and login_response.get('stat') == 'Ok':
+            # --- Check for success ---
+            if login_response and login_response.get("stat") == "Ok":
                 self.is_logged_in = True
-                client_name = login_response.get('uname', 'Client')
-                logger.info(f"Successfully logged in as Shoonya {client_name} ({self.user_id})")
-            else:
-                msg = f"Failed to login for {self.user_id}. Response: {login_response}"
-                logger.error(msg)
-                utils.send_telegram_message(msg)
-                # Raise specific exception instead of exiting
-                raise LoginError(msg)
+                client_name = login_response.get("uname", "Client")
+                msg = f"✅ Successfully logged in as Shoonya {client_name} ({self.user_id})"
+                logger.info(msg)
 
-            # Log any dmsg if present (e.g., session message)
-            if 'dmsg' in login_response:
-                dmsg = login_response['dmsg']
-                logger.warning(f"Login message for {self.user_id}: {dmsg}")
-                utils.send_telegram_message(f"{self.user_id}, dmsg: {dmsg}")
+                # Optional: show extra message if present
+                if "dmsg" in login_response:
+                    dmsg = login_response["dmsg"]
+                    logger.warning(f"Login message for {self.user_id}: {dmsg}")
+                    utils.send_telegram_message(f"{self.user_id}, dmsg: {dmsg}")
+
+                return {
+                    "status": "success",
+                    "message": msg,
+                    "response": login_response,
+                }
+
+            # --- Login failed case ---
+            msg = f"❌ Failed to login for {self.user_id}. Response: {login_response}"
+            logger.error(msg)
+            utils.send_telegram_message(msg)
+            raise LoginError(msg)
 
         except pyotp.otp.Base32KeyError as e:
-            logger.critical(f"Invalid TOTP secret format for {self.user_id}. Error: {e}")
-            raise LoginError(f"Invalid TOTP secret format: {e}") from e
+            msg = f"Invalid TOTP secret format for {self.user_id}. Error: {e}"
+            logger.critical(msg)
+            raise LoginError(msg) from e
+
         except Exception as e:
-            # Catch other potential connection or API errors
-            error_msg = f"{self.user_id}, Unexpected error during login: {e}"
-            logger.critical(error_msg, exc_info=True)
-            utils.send_telegram_message(error_msg)
-            raise LoginError(error_msg) from e
+            msg = f"{self.user_id}, Unexpected error during login: {e}"
+            logger.critical(msg, exc_info=True)
+            utils.send_telegram_message(msg)
+            raise LoginError(msg) from e
 
-    def place_order(self, symbol: str, qty: int, side: str, order_type: str, price: float = 0.0, trigger: Optional[float] = None, remarks: Optional[str] = None) -> Dict[str, Any]:
+    def place_order(
+            self,
+            symbol: str,
+            qty: int,
+            side: str,
+            order_type: str,
+            price: float = 0.0,
+            trigger: Optional[float] = None,
+            remarks: Optional[str] = None
+    ) -> Dict[str, Any]:
         """
-        Places a trading order after performing preliminary login and risk checks.
+        Places or modifies a trading order after performing login and pre-order checks.
 
-        :param symbol: The trading symbol (e.g., 'NIFTYBEES').
-        :param qty: The order quantity.
+        :param symbol: Trading symbol (e.g., 'NIFTYBEES').
+        :param qty: Order quantity.
         :param side: 'B' (Buy) or 'S' (Sell).
         :param order_type: 'LMT', 'MKT', 'SL-LMT', etc.
-        :param price: The limit price.
-        :param trigger: The trigger price (for SL orders).
-        :param remarks: Optional remarks for the order.
-        :return: The API response dictionary for the order placement.
+        :param price: Limit price.
+        :param trigger: Trigger price for SL orders.
+        :param remarks: Optional remarks.
+        :return: API response dictionary.
         """
-        # 1. Check Login State
         if not self.is_logged_in:
             logger.error("Attempted to place order without logging in.")
             raise NotLoggedInError("Cannot place order: User is not logged in.")
 
-        # 2. Pre-order Checks (SRP: delegate checks to dedicated methods)
-        if self._is_buy_pre_cutoff(side=side):
-            return {"stat": "REJECTED", "emsg": f"Buy orders restricted before {MARKET_CUTOFF_TIME.strftime('%H:%M:%S')}."}
-
-        if self._is_existing_order_active(symbol, side):
-            return {"stat": "REJECTED", "emsg": f"Active order for {symbol} ({side}) already exists."}
-
-        # 3. Prepare Order Parameters
         tradingsymbol_full = f"{symbol}-EQ"
-        adjusted_price = self._calculate_adjusted_price(side, order_type, price)
 
-        # 4. Place Order API Call
-        order_response = self.api.place_order(
-            buy_or_sell=side, product_type='C', exchange='NSE', tradingsymbol=tradingsymbol_full,
-            quantity=qty, discloseqty=0, price_type=order_type, price=adjusted_price,
-            trigger_price=trigger, retention='DAY', remarks=remarks
-        )
+        if side == "B":
+            # --- Pre-buy checks ---
+            if self._is_buy_pre_cutoff(side=side):
+                return {"stat": "REJECTED",
+                        "emsg": f"Buy orders restricted before {MARKET_CUTOFF_TIME.strftime('%H:%M:%S')}"}
 
-        # 5. Handle and Log API Response
-        if order_response and order_response.get('stat') == 'Ok':
-            logger.info(f"Order placed successfully: {order_response.get('norenordno')} for {symbol}.")
-            utils.send_telegram_message(f"{side} order for {qty} {symbol} placed at {adjusted_price}")
+            if self._is_existing_order_active(symbol, side):
+                return {"stat": "REJECTED", "emsg": f"Active buy order for {symbol} already exists."}
 
-        else:
-            emsg = order_response.get('emsg', 'Unknown API Error')
-            logger.error(f"Order failed for {symbol}. Response: {order_response}")
-            utils.send_telegram_message(f"Order failed for {symbol}: {emsg}")
+            # --- Calculate adjusted price and place buy order ---
+            adjusted_price = self._calculate_adjusted_price(side, order_type, price)
+            order_response = self.api.place_order(
+                buy_or_sell=side,
+                product_type='C',
+                exchange='NSE',
+                tradingsymbol=tradingsymbol_full,
+                quantity=qty,
+                discloseqty=0,
+                price_type=order_type,
+                price=adjusted_price,
+                trigger_price=trigger,
+                retention='DAY',
+                remarks=remarks
+            )
 
-        return order_response
+            # --- Handle API response ---
+            if order_response.get("stat") == "Ok":
+                logger.info(f"Buy order placed successfully: {order_response.get('norenordno')} for {symbol}.")
+                utils.send_telegram_message(f"{side} order for {qty} {symbol} placed at {adjusted_price}")
+            else:
+                emsg = order_response.get('emsg', 'Unknown API Error')
+                logger.error(f"Buy order failed for {symbol}. Response: {order_response}")
+                utils.send_telegram_message(f"Buy order failed for {symbol}: {emsg}")
 
-    def fetch_current_holdings_and_cash(self) -> tuple[pd.DataFrame, float]:
+            return order_response
+
+        else:  # Sell order logic
+            # --- Check for existing active sell orders ---
+            orders_data = self.api.get_order_book()
+            existing_order = None
+            if orders_data:
+                orders = pd.DataFrame(orders_data)
+                tradingsymbol_full = f"{symbol}-EQ"
+                if all(col in orders.columns for col in ['tsym', 'trantype', 'status', 'norenordno', 'prc']):
+                    active_orders = orders[
+                        (orders['tsym'] == tradingsymbol_full) &
+                        (orders['trantype'] == side) &
+                        (orders['status'].isin(ACTIVE_STATUSES))
+                        ]
+                    if not active_orders.empty:
+                        existing_order = active_orders.iloc[0]
+
+            if existing_order is not None:
+                # --- Modify order if current sell price is higher ---
+                current_price = price
+                previous_price = float(existing_order['prc'])
+                if current_price > previous_price:
+                    orderno = existing_order['norenordno']
+                    modify_response = self.api.modify_order(
+                        exchange='NSE',
+                        tradingsymbol=tradingsymbol_full,
+                        orderno=orderno,
+                        newquantity=qty,
+                        newprice_type=order_type,
+                        newprice=current_price,
+                        newtrigger_price=trigger,
+                        amo='No'
+                    )
+                    logger.info(f"Sell order modified for {symbol}: {modify_response}")
+                    utils.send_telegram_message(f"Modified sell order for {symbol} to price {current_price}")
+                    return modify_response
+                else:
+                    logger.info(f"Existing sell order price for {symbol} is higher. No modification done.")
+                    return {"stat": "SKIPPED", "emsg": "Existing sell order price higher; no action taken."}
+
+            # --- Place new sell order if no active order exists ---
+            adjusted_price = self._calculate_adjusted_price(side, order_type, price)
+            order_response = self.api.place_order(
+                buy_or_sell=side,
+                product_type='C',
+                exchange='NSE',
+                tradingsymbol=tradingsymbol_full,
+                quantity=qty,
+                discloseqty=0,
+                price_type=order_type,
+                price=adjusted_price,
+                trigger_price=trigger,
+                retention='DAY',
+                remarks=remarks
+            )
+
+            if order_response.get("stat") == "Ok":
+                logger.info(f"Sell order placed successfully: {order_response.get('norenordno')} for {symbol}.")
+                utils.send_telegram_message(f"{side} order for {qty} {symbol} placed at {adjusted_price}")
+            else:
+                emsg = order_response.get('emsg', 'Unknown API Error')
+                logger.error(f"Sell order failed for {symbol}. Response: {order_response}")
+                utils.send_telegram_message(f"Sell order failed for {symbol}: {emsg}")
+
+            return order_response
+
+
+    def fetch_current_holdings_and_cash(self) -> tuple[pd.DataFrame, float , pd.DataFrame]:
         """
         Fetch current ETF holdings and total cash from Shoonya API.
 
@@ -161,6 +263,7 @@ class ShoonyaAPI:
         limits = self.api.get_limits()
         cash = float(limits.get("cash", 0.0)) + float(limits.get("payin", 0.0))
         total_invest = cash
+        etf_prices_df = fetch_all_etf_data()
 
         # --- Fetch holdings ---
         raw_holdings = pd.DataFrame(self.api.get_holdings())
@@ -169,7 +272,7 @@ class ShoonyaAPI:
             empty_df = pd.DataFrame(
                 columns=["etf", "held_qty", "buy_price", "invested", "ltp", "pct_diff"]
             )
-            return empty_df, total_invest
+            return empty_df, total_invest, etf_prices_df
 
         # --- Prepare holdings data ---
         holdings_data = []
@@ -195,10 +298,9 @@ class ShoonyaAPI:
             empty_df = pd.DataFrame(
                 columns=["etf", "held_qty", "buy_price", "invested", "ltp", "pct_diff"]
             )
-            return empty_df, total_invest
+            return empty_df, total_invest, etf_prices_df
 
         # --- Fetch current ETF prices ---
-        etf_prices_df = fetch_all_etf_data()
         if etf_prices_df.empty:
             msg = "Failed to fetch ETF prices. Cannot proceed with holdings calculation."
             logger.error(msg)
@@ -216,7 +318,7 @@ class ShoonyaAPI:
 
         logger.info(f"Fetched {len(holdings_df)} ETF holdings. Total investable cash: {total_invest}")
 
-        return holdings_df, total_invest
+        return holdings_df, total_invest , etf_prices_df
 
 
     # ------------------
