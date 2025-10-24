@@ -10,7 +10,7 @@ from src.utils import fetch_all_etf_data
 
 # --- Setup Logging ---
 # We configure logging to write to a file and include timestamps/levels.
-LOGGING_FILE = "shoonya_api.log"
+LOGGING_FILE = "logs/shoonya_api.log"
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
@@ -34,6 +34,40 @@ class LoginError(Exception):
 class NotLoggedInError(Exception):
     """Custom exception for methods called when not logged in."""
     pass
+
+
+def _is_buy_pre_cutoff() -> bool:
+    """
+    Internal method to check if a 'Buy' order is being attempted before the
+    pre-defined MARKET_CUTOFF_TIME (e.g., 2 PM).
+    Returns True if the order should be blocked, False otherwise.
+    """
+    current_time = datetime.now().time()
+    if current_time < MARKET_CUTOFF_TIME:
+        logger.warning(
+            f"Order check blocked: Buy order attempted before {MARKET_CUTOFF_TIME}. "
+            f"Current time: {current_time.strftime('%H:%M:%S')}."
+        )
+        return True
+    return False
+
+
+def _calculate_adjusted_price(side: str, order_type: str, price: float) -> float:
+    """
+    Internal method to calculate the adjusted limit price for aggressive orders.
+    """
+    if order_type == 'MKT' or price <= 0:
+        return 0.0
+
+    # Aggressive price adjustment using the defined constant
+    if side == 'B':
+        adjusted_price = price + PRICE_ADJUSTMENT_DELTA
+    elif side == 'S':
+        adjusted_price = price - PRICE_ADJUSTMENT_DELTA
+    else:
+        adjusted_price = price
+
+    return round(adjusted_price, 2)
 
 
 class ShoonyaAPI:
@@ -119,12 +153,77 @@ class ShoonyaAPI:
             utils.send_telegram_message(msg)
             raise LoginError(msg) from e
 
-    def place_order(
+    def logout(self):
+        self.api.logout()
+        logger.info("Successfully logged out")
+
+    def place_buy_order(
             self,
             symbol: str,
             qty: int,
-            side: str,
             order_type: str,
+            price: float = 0.0,
+            trigger: Optional[float] = None,
+            remarks: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Places or modifies a trading order after performing login and pre-order checks.
+
+        :param symbol: Trading symbol (e.g., 'NIFTYBEES').
+        :param qty: Order quantity.
+        :param order_type: 'LMT', 'MKT', 'SL-LMT', etc.
+        :param price: Limit price.
+        :param trigger: Trigger price for SL orders.
+        :param remarks: Optional remarks.
+        :return: API response dictionary.
+        """
+        if not self.is_logged_in:
+            logger.error("Attempted to place order without logging in.")
+            raise NotLoggedInError("Cannot place order: User is not logged in.")
+
+        tradingsymbol_full = f"{symbol}-EQ"
+
+        # --- Pre-buy checks ---
+        if _is_buy_pre_cutoff():
+            return {"stat": "REJECTED",
+                    "emsg": f"Buy orders restricted before {MARKET_CUTOFF_TIME.strftime('%H:%M:%S')}"}
+
+        if self._is_existing_order_active(symbol, 'B'):
+            return {"stat": "REJECTED", "emsg": f"Active buy order for {symbol} already exists."}
+
+        # --- Calculate adjusted price and place buy order ---
+        adjusted_price = _calculate_adjusted_price('B', order_type, price)
+        order_response = self.api.place_order(
+            buy_or_sell='B',
+            product_type='C',
+            exchange='NSE',
+            tradingsymbol=tradingsymbol_full,
+            quantity=qty,
+            discloseqty=0,
+            price_type=order_type,
+            price=adjusted_price,
+            trigger_price=trigger,
+            retention='DAY',
+            remarks=remarks
+        )
+
+        # --- Handle API response ---
+        if order_response.get("stat") == "Ok":
+            logger.info(f"Buy order placed successfully: {order_response.get('norenordno')} for {symbol}.")
+            utils.send_telegram_message(f"Buy order for {qty} {symbol} placed at {adjusted_price}")
+        else:
+            emsg = order_response.get('emsg', 'Unknown API Error')
+            logger.error(f"Buy order failed for {symbol}. Response: {order_response}")
+            utils.send_telegram_message(f"Buy order failed for {symbol}: {emsg}")
+
+        return order_response
+
+
+    def trail_and_place_sell_order(
+            self,
+            symbol: str,
+            qty: int,
+            order_type: str = 'S',
             price: float = 0.0,
             trigger: Optional[float] = None,
             remarks: Optional[str] = None
@@ -147,106 +246,72 @@ class ShoonyaAPI:
 
         tradingsymbol_full = f"{symbol}-EQ"
 
-        if side == "B":
-            # --- Pre-buy checks ---
-            if self._is_buy_pre_cutoff(side=side):
-                return {"stat": "REJECTED",
-                        "emsg": f"Buy orders restricted before {MARKET_CUTOFF_TIME.strftime('%H:%M:%S')}"}
 
-            if self._is_existing_order_active(symbol, side):
-                return {"stat": "REJECTED", "emsg": f"Active buy order for {symbol} already exists."}
+        # --- Check for existing active sell orders ---
+        orders_data = self.api.get_order_book()
+        existing_order = None
+        if orders_data:
+            orders = pd.DataFrame(orders_data)
+            tradingsymbol_full = f"{symbol}-EQ"
+            if all(col in orders.columns for col in ['tsym', 'trantype', 'status', 'norenordno', 'prc']):
+                active_orders = orders[
+                    (orders['tsym'] == tradingsymbol_full) &
+                    (orders['trantype'] == 'S') &
+                    (orders['status'].isin(ACTIVE_STATUSES))
+                    ]
+                if not active_orders.empty:
+                    existing_order = active_orders.iloc[0]
 
-            # --- Calculate adjusted price and place buy order ---
-            adjusted_price = self._calculate_adjusted_price(side, order_type, price)
-            order_response = self.api.place_order(
-                buy_or_sell=side,
-                product_type='C',
-                exchange='NSE',
-                tradingsymbol=tradingsymbol_full,
-                quantity=qty,
-                discloseqty=0,
-                price_type=order_type,
-                price=adjusted_price,
-                trigger_price=trigger,
-                retention='DAY',
-                remarks=remarks
-            )
-
-            # --- Handle API response ---
-            if order_response.get("stat") == "Ok":
-                logger.info(f"Buy order placed successfully: {order_response.get('norenordno')} for {symbol}.")
-                utils.send_telegram_message(f"{side} order for {qty} {symbol} placed at {adjusted_price}")
+        if existing_order is not None:
+            # --- Modify order if current sell price is higher ---
+            current_price = price
+            previous_price = float(existing_order['prc'])
+            if current_price > previous_price:
+                orderno = existing_order['norenordno']
+                modify_response = self.api.modify_order(
+                    exchange='NSE',
+                    tradingsymbol=tradingsymbol_full,
+                    orderno=orderno,
+                    newquantity=qty,
+                    newprice_type=order_type,
+                    newprice=current_price,
+                    newtrigger_price=trigger,
+                    amo='No'
+                )
+                logger.info(f"Sell order modified for {symbol}: {modify_response}")
+                utils.send_telegram_message(f"Modified sell order for {symbol} to price {current_price}")
+                return modify_response
             else:
-                emsg = order_response.get('emsg', 'Unknown API Error')
-                logger.error(f"Buy order failed for {symbol}. Response: {order_response}")
-                utils.send_telegram_message(f"Buy order failed for {symbol}: {emsg}")
+                logger.info(f"Existing sell order price for {symbol} is higher. No modification done.")
+                return {"stat": "SKIPPED", "emsg": "Existing sell order price higher; no action taken."}
 
-            return order_response
+        # --- Place new sell order if no active order exists ---
+        adjusted_price = _calculate_adjusted_price("S", order_type, price)
+        order_response = self.api.place_order(
+            buy_or_sell="S",
+            product_type='C',
+            exchange='NSE',
+            tradingsymbol=tradingsymbol_full,
+            quantity=qty,
+            discloseqty=0,
+            price_type=order_type,
+            price=adjusted_price,
+            trigger_price=trigger,
+            retention='DAY',
+            remarks=remarks
+        )
 
-        else:  # Sell order logic
-            # --- Check for existing active sell orders ---
-            orders_data = self.api.get_order_book()
-            existing_order = None
-            if orders_data:
-                orders = pd.DataFrame(orders_data)
-                tradingsymbol_full = f"{symbol}-EQ"
-                if all(col in orders.columns for col in ['tsym', 'trantype', 'status', 'norenordno', 'prc']):
-                    active_orders = orders[
-                        (orders['tsym'] == tradingsymbol_full) &
-                        (orders['trantype'] == side) &
-                        (orders['status'].isin(ACTIVE_STATUSES))
-                        ]
-                    if not active_orders.empty:
-                        existing_order = active_orders.iloc[0]
+        if order_response.get("stat") == "Ok":
+            logger.info(f"Sell order placed successfully: {order_response.get('norenordno')} for {symbol}.")
+            utils.send_telegram_message(f"Sell order for {qty} {symbol} placed at {adjusted_price}")
+        else:
+            emsg = order_response.get('emsg', 'Unknown API Error')
+            logger.error(f"Sell order failed for {symbol}. Response: {order_response}")
+            utils.send_telegram_message(f"Sell order failed for {symbol}: {emsg}")
 
-            if existing_order is not None:
-                # --- Modify order if current sell price is higher ---
-                current_price = price
-                previous_price = float(existing_order['prc'])
-                if current_price > previous_price:
-                    orderno = existing_order['norenordno']
-                    modify_response = self.api.modify_order(
-                        exchange='NSE',
-                        tradingsymbol=tradingsymbol_full,
-                        orderno=orderno,
-                        newquantity=qty,
-                        newprice_type=order_type,
-                        newprice=current_price,
-                        newtrigger_price=trigger,
-                        amo='No'
-                    )
-                    logger.info(f"Sell order modified for {symbol}: {modify_response}")
-                    utils.send_telegram_message(f"Modified sell order for {symbol} to price {current_price}")
-                    return modify_response
-                else:
-                    logger.info(f"Existing sell order price for {symbol} is higher. No modification done.")
-                    return {"stat": "SKIPPED", "emsg": "Existing sell order price higher; no action taken."}
+        return order_response
 
-            # --- Place new sell order if no active order exists ---
-            adjusted_price = self._calculate_adjusted_price(side, order_type, price)
-            order_response = self.api.place_order(
-                buy_or_sell=side,
-                product_type='C',
-                exchange='NSE',
-                tradingsymbol=tradingsymbol_full,
-                quantity=qty,
-                discloseqty=0,
-                price_type=order_type,
-                price=adjusted_price,
-                trigger_price=trigger,
-                retention='DAY',
-                remarks=remarks
-            )
 
-            if order_response.get("stat") == "Ok":
-                logger.info(f"Sell order placed successfully: {order_response.get('norenordno')} for {symbol}.")
-                utils.send_telegram_message(f"{side} order for {qty} {symbol} placed at {adjusted_price}")
-            else:
-                emsg = order_response.get('emsg', 'Unknown API Error')
-                logger.error(f"Sell order failed for {symbol}. Response: {order_response}")
-                utils.send_telegram_message(f"Sell order failed for {symbol}: {emsg}")
-
-            return order_response
 
 
     def fetch_current_holdings_and_cash(self) -> tuple[pd.DataFrame, float , pd.DataFrame]:
@@ -367,36 +432,3 @@ class ShoonyaAPI:
             return True
 
         return False
-
-    def _is_buy_pre_cutoff(self, side: str) -> bool:
-        """
-        Internal method to check if a 'Buy' order is being attempted before the
-        pre-defined MARKET_CUTOFF_TIME (e.g., 2 PM).
-        Returns True if the order should be blocked, False otherwise.
-        """
-        if side == 'B':
-            current_time = datetime.now().time()
-            if current_time < MARKET_CUTOFF_TIME:
-                logger.warning(
-                    f"Order check blocked: Buy order attempted before {MARKET_CUTOFF_TIME}. "
-                    f"Current time: {current_time.strftime('%H:%M:%S')}."
-                )
-                return True
-        return False
-
-    def _calculate_adjusted_price(self, side: str, order_type: str, price: float) -> float:
-        """
-        Internal method to calculate the adjusted limit price for aggressive orders.
-        """
-        if order_type == 'MKT' or price <= 0:
-            return 0.0
-
-        # Aggressive price adjustment using the defined constant
-        if side == 'B':
-            adjusted_price = price + PRICE_ADJUSTMENT_DELTA
-        elif side == 'S':
-            adjusted_price = price - PRICE_ADJUSTMENT_DELTA
-        else:
-            adjusted_price = price
-
-        return round(adjusted_price, 2)

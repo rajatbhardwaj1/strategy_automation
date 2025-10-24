@@ -18,7 +18,7 @@ ETF_TO_BUY = 1
 
 
 # --- Logging Setup ---
-LOG_FILE = "utils.log"
+LOG_FILE = "logs/utils.log"
 
 logging.basicConfig(
     level=logging.INFO,

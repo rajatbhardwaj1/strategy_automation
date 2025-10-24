@@ -1,18 +1,16 @@
 import pandas as pd
 import logging
-from datetime import datetime, time as dt_time
+from datetime import  time as dt_time
 from typing import Dict, List, Tuple, Optional, Any
 
 import src.utils as utils
 from  src.shoonya_api import ShoonyaAPI
-from src.utils import fetch_all_etf_data
-from src.etf import ETFS as etf_symbols
 
 
 # ----------------------------
 # Logging
 # ----------------------------
-LOGGING_FILE = "strategy.log"
+LOGGING_FILE = "logs/strategy.log"
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
@@ -103,10 +101,9 @@ class ETFStrategy:
             utils.send_telegram_message(msg)
             raise InsufficientCashError(msg)
 
-        order_response = self.api.place_order(
+        order_response = self.api.place_buy_order(
             symbol=symbol,
             qty=qty,
-            side='B',
             order_type=order_type,
             price=price,
             trigger=trigger,
@@ -121,10 +118,9 @@ class ETFStrategy:
         """
         Place a sell order for the given symbol and quantity.
         """
-        order_response = self.api.place_order(
+        order_response = self.api.trail_and_place_sell_order(
             symbol=symbol,
             qty=qty,
-            side='S',
             order_type= order_type,
             price=price,
             trigger=trigger,
@@ -135,52 +131,32 @@ class ETFStrategy:
         return order_response
 
 
-    def place_order(self, symbol: str, qty: int, side: str, order_type: str = 'LMT', price: float = 0.0, trigger: Optional[float] = None, remarks: Optional[str] = None) -> Dict[str, Any]:
-        """
-        Wrapper to place a buy or sell order.
-        """
-        if side == 'B':
-            return self._place_buy_order(symbol, qty, price,order_type, trigger, remarks)
-        elif side == 'S':
-            return self._place_sell_order(symbol, qty, price,order_type,  trigger, remarks)
-        else:
-            raise ValueError(f"Invalid side '{side}'. Must be 'B' or 'S'.")
-
-
     # -----------------------------------
     # Trailing Profit Logic
     # -----------------------------------
-    def process_trailing_profit(self, book_today: pd.DataFrame) -> int:
+    def process_trailing_profit(self, book_today: pd.DataFrame):
         """
         Place trailing profit sell orders for profitable ETFs.
         """
         if book_today.empty:
             logger.info("No ETFs found for trailing profit.")
-            return 0
+        else:
+            logger.info("Processing trailing profit orders...")
+            for _, row in book_today.iterrows():
+                price = round(row["ltp"] - (row["buy_price"] * 0.005), 2)
+                trigger = round(price + 0.01, 2)
+                logger.debug(f"Placing SL-LMT for {row['etf']} at price {price}, trigger {trigger}")
 
-        logger.info("Processing trailing profit orders...")
-        for _, row in book_today.iterrows():
-            price = round(row["ltp"] - (row["buy_price"] * 0.005), 2)
-            trigger = round(price + 0.01, 2)
-            logger.debug(f"Placing SL-LMT for {row['etf']} at price {price}, trigger {trigger}")
+                self._place_sell_order(row["etf"], row["held_qty"], price,"SL-LMT",  trigger, "Trailing profit")
 
-            self.place_order(
-                symbol=row["etf"],
-                qty=int(row["held_qty"]),
-                side="S",
-                order_type="SL-LMT",
-                price=price,
-                trigger=trigger,
-                remarks="Trailing profit",
-            )
 
-        return len(book_today)
+
 
 
     # -----------------------------------
     # Buy Logic
     # -----------------------------------
-    def buy_etfs(self, etfs_to_buy: pd.DataFrame, held_etfs: pd.DataFrame, cash: float) -> None:
+    def buy_etfs(self, etfs_to_buy: pd.DataFrame, held_etfs: pd.DataFrame, cash: float) :
         """
         Buy selected ETFs, averaging down existing positions where applicable.
         """
@@ -212,14 +188,16 @@ class ETFStrategy:
 
                 if loss_pct > self.avg_down_threshold:
                     logger.info(f"Averaging down {symbol}: {loss_pct:.2f}% loss.")
-                    self.place_order(symbol, shares, "B", "LMT", current_price, None, "BUY_AVERAGE_DOWN")
+                    self._place_buy_order(symbol, shares, current_price, "LMT", None, "BUY_AVERAGE_DOWN")
                     cash -= shares * current_price
                     buy_count += 1
+
             else:
                 logger.info(f"New buy for {symbol} at {current_price}")
-                self.place_order(symbol, shares, "B", "LMT", current_price, None, "NEW_BUY")
+                self._place_buy_order(symbol, shares, current_price, "LMT", None, "NEW_BUY")
                 cash -= shares * current_price
                 buy_count += 1
+
 
 
     # -----------------------------------
@@ -228,11 +206,7 @@ class ETFStrategy:
 
     # Call every 10 mins
     def sell_order_processing(self) -> None:
-        """
-        Main strategy execution function: trailing sell + fresh buys.
-        """
         held_etfs, cash , etf_data = self.fetch_holdings_and_cash()
-
         to_be_trailed = held_etfs[held_etfs["pct_diff"] > self.profit_threshold]
         if not to_be_trailed.empty:
             self.process_trailing_profit(to_be_trailed)
@@ -240,7 +214,6 @@ class ETFStrategy:
 
     # Call only once at 3.25 PM
     def buy_order_processing(self):
-
         held_etfs, cash , etf_data = self.fetch_holdings_and_cash()
         # etf_data = fetch_all_etf_data()
         etfs_to_buy = identify_buy_signals(etf_data, top_n=3)
