@@ -142,10 +142,7 @@ class ShoonyaAPI:
             utils.send_telegram_message(msg)
             raise LoginError(msg)
 
-        except pyotp.otp.Base32KeyError as e:
-            msg = f"Invalid TOTP secret format for {self.user_id}. Error: {e}"
-            logger.critical(msg)
-            raise LoginError(msg) from e
+
 
         except Exception as e:
             msg = f"{self.user_id}, Unexpected error during login: {e}"

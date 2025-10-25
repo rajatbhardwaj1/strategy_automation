@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Dict
 from src.utils import load_config
 from src.shoonya_api import ShoonyaAPI
-from strategy import ETFStrategy
+from src.strategy import ETFStrategy
 
 # ----------------------------
 # Logging Setup
@@ -69,10 +69,11 @@ if __name__ == "__main__":
         vendor_key=creds["vendor_key"],
         imei=creds["imei"],
     )
-    # to do --> login logout , buy and sell timings ......
     api.login()
+
     runner = StrategyRunner(api, strategy_config)
     # Example runs
+
     runner.run_trailing_sell()  # Run trailing sell immediately
     runner.run_buy()            # Run buy immediately
     api.logout()
