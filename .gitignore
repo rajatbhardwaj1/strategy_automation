@@ -5,6 +5,8 @@ src/*.yaml
 #For local, using mac, cannot send messages on telegram
 src/telegram_utils.py
 
+src/telegram_utils.*
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]

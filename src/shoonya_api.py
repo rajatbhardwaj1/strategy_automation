@@ -7,7 +7,7 @@ from datetime import datetime, time as dt_time
 from typing import Optional, Dict, Any, List
 from src.etf import ETFS as etf_data
 from src.utils import fetch_all_etf_data
-
+from src.telegram_utils import send_telegram_message
 # --- Setup Logging ---
 # We configure logging to write to a file and include timestamps/levels.
 LOGGING_FILE = "logs/shoonya_api.log"
@@ -128,7 +128,7 @@ class ShoonyaAPI:
                 if "dmsg" in login_response:
                     dmsg = login_response["dmsg"]
                     logger.warning(f"Login message for {self.user_id}: {dmsg}")
-                    utils.send_telegram_message(f"{self.user_id}, dmsg: {dmsg}")
+                    send_telegram_message(f"{self.user_id}, dmsg: {dmsg}")
 
                 return {
                     "status": "success",
@@ -139,7 +139,7 @@ class ShoonyaAPI:
             # --- Login failed case ---
             msg = f"❌ Failed to login for {self.user_id}. Response: {login_response}"
             logger.error(msg)
-            utils.send_telegram_message(msg)
+            send_telegram_message(msg)
             raise LoginError(msg)
 
 
@@ -147,7 +147,7 @@ class ShoonyaAPI:
         except Exception as e:
             msg = f"{self.user_id}, Unexpected error during login: {e}"
             logger.critical(msg, exc_info=True)
-            utils.send_telegram_message(msg)
+            send_telegram_message(msg)
             raise LoginError(msg) from e
 
     def logout(self):
@@ -207,11 +207,11 @@ class ShoonyaAPI:
         # --- Handle API response ---
         if order_response.get("stat") == "Ok":
             logger.info(f"Buy order placed successfully: {order_response.get('norenordno')} for {symbol}.")
-            utils.send_telegram_message(f"Buy order for {qty} {symbol} placed at {adjusted_price}")
+            send_telegram_message(f"Buy order for {qty} {symbol} placed at {adjusted_price}")
         else:
             emsg = order_response.get('emsg', 'Unknown API Error')
             logger.error(f"Buy order failed for {symbol}. Response: {order_response}")
-            utils.send_telegram_message(f"Buy order failed for {symbol}: {emsg}")
+            send_telegram_message(f"Buy order failed for {symbol}: {emsg}")
 
         return order_response
 
@@ -276,7 +276,7 @@ class ShoonyaAPI:
                     amo='No'
                 )
                 logger.info(f"Sell order modified for {symbol}: {modify_response}")
-                utils.send_telegram_message(f"Modified sell order for {symbol} to price {current_price}")
+                send_telegram_message(f"Modified sell order for {symbol} to price {current_price}")
                 return modify_response
             else:
                 logger.info(f"Existing sell order price for {symbol} is higher. No modification done.")
@@ -300,11 +300,11 @@ class ShoonyaAPI:
 
         if order_response.get("stat") == "Ok":
             logger.info(f"Sell order placed successfully: {order_response.get('norenordno')} for {symbol}.")
-            utils.send_telegram_message(f"Sell order for {qty} {symbol} placed at {adjusted_price}")
+            send_telegram_message(f"Sell order for {qty} {symbol} placed at {adjusted_price}")
         else:
             emsg = order_response.get('emsg', 'Unknown API Error')
             logger.error(f"Sell order failed for {symbol}. Response: {order_response}")
-            utils.send_telegram_message(f"Sell order failed for {symbol}: {emsg}")
+            send_telegram_message(f"Sell order failed for {symbol}: {emsg}")
 
         return order_response
 
@@ -366,7 +366,7 @@ class ShoonyaAPI:
         if etf_prices_df.empty:
             msg = "Failed to fetch ETF prices. Cannot proceed with holdings calculation."
             logger.error(msg)
-            utils.send_telegram_message(msg)
+            send_telegram_message(msg)
             raise RuntimeError(msg)  # Stop further execution
 
         # --- Combine holdings with current prices ---

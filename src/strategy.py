@@ -5,7 +5,7 @@ from typing import Dict, List, Tuple, Optional, Any
 
 import src.utils as utils
 from  src.shoonya_api import ShoonyaAPI
-
+from src.telegram_utils import send_telegram_message
 
 # ----------------------------
 # Logging
@@ -98,7 +98,7 @@ class ETFStrategy:
         if cash < total_cost:
             msg = f"Insufficient cash to buy {qty} of {symbol}. Available: {cash}, Required: {total_cost}"
             logger.warning(msg)
-            utils.send_telegram_message(msg)
+            send_telegram_message(msg)
             raise InsufficientCashError(msg)
 
         order_response = self.api.place_buy_order(

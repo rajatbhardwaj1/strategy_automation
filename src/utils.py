@@ -5,6 +5,7 @@ import pandas as pd
 from src.etf import ETFS as etf_symbols
 from typing import Optional, List, Dict
 import logging
+from src.telegram_utils import send_telegram_message
 import telegram
 import asyncio
 

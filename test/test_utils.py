@@ -4,7 +4,8 @@ import pytest
 import logging
 import os
 import time
-from src.utils import fetch_etf_data, fetch_all_etf_data, send_telegram_message
+from src.utils import fetch_etf_data, fetch_all_etf_data
+from src.telegram_utils import send_telegram_message
 import pandas as pd
 # --- Logging Setup ---
 LOG_FILE = "strategy.log"
