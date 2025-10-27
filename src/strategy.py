@@ -179,7 +179,10 @@ class ETFStrategy:
             buy_amount = min(total_value / self.buy_divisor, cash + self.hydration)
             shares = int(buy_amount // current_price)
             if shares <= 0:
-                continue
+                send_telegram_message(
+                    f"Insufficient funds to buy {symbol}. Available cash: ₹{cash:.2f}, "
+                )
+                # continue
 
             if symbol in held_etfs["etf"].values:
                 held_row = held_etfs.loc[held_etfs["etf"] == symbol].iloc[0]
