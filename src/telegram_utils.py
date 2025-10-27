@@ -1,8 +1,7 @@
-from src.utils import load_config
 import logging
 import telegram
 import asyncio
-
+import yaml
 # --- Logging Setup ---
 LOG_FILE = "logs/utils.log"
 
@@ -14,6 +13,35 @@ logging.basicConfig(
 )
 
 logger = logging.getLogger(__name__)
+
+
+def load_config(section: str, path: str = "src/config.yaml") -> dict:
+    """
+    Load a specific section from the YAML config file.
+
+    :param section: The section to load ("strategy", "trading", "telegram").
+    :param path: Path to the YAML config file.
+    :return: Dictionary containing the requested configuration.
+    """
+    try:
+        with open(path, "r") as f:
+            cfg = yaml.safe_load(f)
+
+        if section not in cfg:
+            logger.warning(f"Section '{section}' not found in config file.")
+            return {}
+
+        config_section = cfg[section]
+        logger.info(f"Loaded '{section}' configuration: {list(config_section.keys())}")
+        return config_section
+
+    except FileNotFoundError:
+        logger.error(f"Config file not found at {path}")
+        raise
+    except yaml.YAMLError as e:
+        logger.error(f"Error parsing YAML file: {e}")
+        raise
+
 
 def send_telegram_message(message: str):
     try:
