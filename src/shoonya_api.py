@@ -324,7 +324,6 @@ class ShoonyaAPI:
         # --- Fetch cash and limits ---
         limits = self.api.get_limits()
         cash = float(limits.get("cash", 0.0)) + float(limits.get("payin", 0.0))
-        total_invest = cash
         etf_prices_df = fetch_all_etf_data()
 
         # --- Fetch holdings ---
@@ -343,7 +342,6 @@ class ShoonyaAPI:
             if qty <= 0:
                 continue
             invested_value = qty * float(row.get("upldprc", 0.0))
-            total_invest += invested_value
 
             for entry in row.get("exch_tysm", []):
                 tsym = entry["tsym"].replace("-EQ", "")
@@ -360,7 +358,7 @@ class ShoonyaAPI:
             empty_df = pd.DataFrame(
                 columns=["etf", "held_qty", "buy_price", "invested", "ltp", "pct_diff"]
             )
-            return empty_df, total_invest, etf_prices_df
+            return empty_df, cash, etf_prices_df
 
         # --- Fetch current ETF prices ---
         if etf_prices_df.empty:
@@ -380,7 +378,7 @@ class ShoonyaAPI:
 
         logger.info(f"Fetched {len(holdings_df)} ETF holdings. Total investable cash: {total_invest}")
 
-        return holdings_df, total_invest , etf_prices_df
+        return holdings_df, cash , etf_prices_df
 
 
     # ------------------
