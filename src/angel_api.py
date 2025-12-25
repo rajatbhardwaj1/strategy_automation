@@ -184,7 +184,7 @@ class AngelAPI:
                 client_name = login_response.get("data", {}).get("name", "Client")
                 msg = f"✅ Successfully logged in as Angel {client_name} ({self.user_name})"
                 logger.info(msg)
-                send_telegram_message(msg)
+                # send_telegram_message(msg)
                 return {
                     "status": "success",
                     "message": msg,

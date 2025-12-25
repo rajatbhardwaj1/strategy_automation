@@ -2,7 +2,7 @@ import pandas as pd
 import logging
 from datetime import  time as dt_time
 from typing import Dict, List, Tuple, Optional, Any, Union
-from src.utils import fetch_all_etf_data
+from src.utils import fetch_all_etf_data, format_buy_signal_message
 import src.utils as utils
 from  src.shoonya_api import ShoonyaAPI
 from src.angel_api import AngelAPI
@@ -221,5 +221,7 @@ class ETFStrategy:
         held_etfs, cash  = self.fetch_holdings_and_cash()
         etf_data = fetch_all_etf_data()
         etfs_to_buy = identify_buy_signals(etf_data, top_n=3)
+        message = format_buy_signal_message(etfs_to_buy)
+        send_telegram_message(message)
         self.buy_etfs(etfs_to_buy, held_etfs, cash)
 

@@ -123,3 +123,16 @@ def fetch_all_etf_data(symbols: List[str] = etf_symbols) -> pd.DataFrame:
 
     logger.warning("No ETF data could be fetched.")
     return pd.DataFrame()  # return empty DataFrame if all fail
+
+
+def format_buy_signal_message(etfs_to_buy: pd.DataFrame) -> str:
+    if etfs_to_buy.empty:
+        return "📉 No buy signals generated today."
+
+    lines = ["📊 *Top Buy Signals (3:25 PM)*\n"]
+    for idx, row in etfs_to_buy.iterrows():
+        lines.append(
+            f"• {row['etf']} → {row['pct_diff']:.2f}% below DMA"
+        )
+
+    return "\n".join(lines)
