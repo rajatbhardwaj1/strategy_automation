@@ -119,7 +119,7 @@ def run_scheduler():
 
     # Daily buy at 15:20 Mon-Fri
     for day in ["monday", "tuesday", "wednesday", "thursday", "friday"]:
-        getattr(schedule.every(), day).at("11:22").do(run_buy)
+        getattr(schedule.every(), day).at("15:20").do(run_buy)
 
     logger.info("=== Strategy Scheduler Started ===")
     # ---------------

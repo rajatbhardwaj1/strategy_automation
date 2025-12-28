@@ -180,10 +180,14 @@ class ETFStrategy:
             buy_amount = min(total_value / self.buy_divisor, cash + self.hydration)
             shares = int(buy_amount // current_price)
             if shares <= 0:
-                send_telegram_message(
-                    f"Insufficient funds to buy {symbol}. Available cash: ₹{cash:.2f}, "
+                msg = (
+                    f"⚠️ **Insufficient Funds**\n"
+                    f"Symbol: {symbol}\n"
+                    f"Req: ₹{current_price}\n"
+                    f"Cash: ₹{cash:.2f}"
                 )
-                # continue
+                send_telegram_message(msg)
+                continue  # Uncommented this so the loop skips to the next item
 
             if symbol in held_etfs["etf"].values:
                 held_row = held_etfs.loc[held_etfs["etf"] == symbol].iloc[0]
@@ -192,15 +196,54 @@ class ETFStrategy:
 
                 if loss_pct > self.avg_down_threshold:
                     logger.info(f"Averaging down {symbol}: {loss_pct:.2f}% loss.")
-                    self._place_buy_order(symbol, shares, current_price, "LIMIT", None, "BUY_AVERAGE_DOWN")
+
+                    response = self._place_buy_order(symbol, shares, current_price, "LIMIT", None, "BUY_AVERAGE_DOWN")
+
+                    if response.get("status") and response.get("final_status") != 'rejected':
+                        cash -= shares * current_price
+                        buy_count += 1
+
+                        # Success Message
+                        send_telegram_message(
+                            f"✅ **AVERAGE DOWN Executed**\n"
+                            f"Symbol: {symbol}\n"
+                            f"Qty: {shares} @ ₹{current_price}\n"
+                            f"Current Loss: {loss_pct:.2f}%"
+                        )
+                    else:
+                        # Failure Message
+                        error_reason = response.get('message', 'Unknown Error')
+                        send_telegram_message(
+                            f"❌ **Avg Down Failed**\n"
+                            f"Symbol: {symbol}\n"
+                            f"Reason: {error_reason}"
+                        )
+
+                # Logic for New Buy (Not currently held)
+            else:
+                logger.info(f"New buy for {symbol} at {current_price}")
+
+                response = self._place_buy_order(symbol, shares, current_price, "LIMIT", None, "NEW_BUY")
+
+                if response.get("status") and response.get("final_status") != 'rejected':
                     cash -= shares * current_price
                     buy_count += 1
 
-            else:
-                logger.info(f"New buy for {symbol} at {current_price}")
-                self._place_buy_order(symbol, shares, current_price, "LIMIT", None, "NEW_BUY")
-                cash -= shares * current_price
-                buy_count += 1
+                    # Success Message
+                    send_telegram_message(
+                        f"✅ **NEW BUY Executed**\n"
+                        f"Symbol: {symbol}\n"
+                        f"Qty: {shares} @ ₹{current_price}\n"
+                        f"Allocated: ₹{shares * current_price:.2f}"
+                    )
+                else:
+                    # Failure Message
+                    error_reason = response.get('message', 'Unknown Error')
+                    send_telegram_message(
+                        f"❌ **New Buy Failed**\n"
+                        f"Symbol: {symbol}\n"
+                        f"Reason: {error_reason}"
+                    )
 
 
 

@@ -28,7 +28,7 @@ MARKET_CUTOFF_TIME = dt_time(14, 0, 0)  # 2:00:00 PM for buy restriction
 PRICE_ADJUSTMENT_DELTA = 0.01  # Aggressiveness for limit orders
 # **CORRECTION:** Using Angel Broking's actual active order statuses (typically lower-case)
 ACTIVE_STATUSES: List[str] = ['open', 'pending', 'trigger pending']
-
+MAX_TRIES = 5
 
 # --- Custom Exceptions for better error handling ---
 class LoginError(Exception):
@@ -273,8 +273,34 @@ class AngelAPI:
         }
 
         try:
-            order_response = self.api.placeOrder(orderparams)
-            time.sleep(1)  # Delay as seen in original script
+            order_response = None
+            for tries in range(MAX_TRIES):
+                order_response = self.api.placeOrder(orderparams)
+                orderid = order_response
+
+                time.sleep(5)
+
+                if not order_response :
+                    break
+
+                orderBook = self.api.orderBook()
+                order_entries = orderBook.get("data", [])
+                order_info = next(
+                    (o for o in order_entries if str(o.get("orderid")) == str(orderid)), None
+                )
+
+                status = order_info.get("status", "UNKNOWN") if order_info else "NOT_FOUND"
+
+                if status != 'rejected':
+                    break
+                else :
+                    msg = (
+                        f"Order Rejected Trying again {tries + 1} out of {MAX_TRIES} times: {side.upper()} {qty} {symbol} at "
+                        f"{adjusted_price} (Type: {order_type}). Status: {status}"
+                    )
+                    logger.info(msg)
+                    send_telegram_message(msg)
+
 
             if order_response :
                 orderid = order_response
@@ -284,7 +310,6 @@ class AngelAPI:
                 order_info = next(
                     (o for o in order_entries if str(o.get("orderid")) == str(orderid)), None
                 )
-
                 status = order_info.get("status", "UNKNOWN") if order_info else "NOT_FOUND"
                 msg = (
                     f"Order placed: {side.upper()} {qty} {symbol} at "
