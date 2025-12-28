@@ -473,7 +473,7 @@ class AngelAPI:
             tsym_full = holding.get('tradingsymbol')
             tsym = tsym_full.replace('-EQ', '')  # Normalize symbol
             qty = int(holding.get('quantity', 0))
-            if qty <= 0 or not tsym.endswith('BEES'):  # Assuming only ETF/BEES are relevant
+            if qty <= 0 :
                 continue
 
             buy_price = float(holding.get('averageprice', 0.0))
