@@ -275,6 +275,7 @@ class AngelAPI:
         try:
             order_response = None
             for tries in range(MAX_TRIES):
+                time.sleep(5)
                 order_response = self.api.placeOrder(orderparams)
                 orderid = order_response
 
