@@ -176,6 +176,7 @@ class AngelAPI:
         try:
             self.api = SmartConnect(api_key=self.api_key)
             totp = pyotp.TOTP(self.totp_secret).now()
+            time.sleep(2)
             login_response = self.api.generateSession(self.user_name, self.password, totp)
 
             # --- Check for success ---
@@ -211,6 +212,7 @@ class AngelAPI:
 
     def _get_active_orders(self, symbol: str, side: str) -> pd.DataFrame:
         """Internal helper to fetch and filter active orders."""
+        time.sleep(2)
         orders_data = self.api.orderBook()
         if not orders_data or orders_data.get('status') is False:
             logger.warning("Failed to fetch order book.")
@@ -275,7 +277,7 @@ class AngelAPI:
         try:
             order_response = None
             for tries in range(MAX_TRIES):
-                time.sleep(5)
+                time.sleep(2)
                 order_response = self.api.placeOrder(orderparams)
                 orderid = order_response
 
@@ -283,7 +285,7 @@ class AngelAPI:
 
                 if not order_response :
                     break
-
+                time.sleep(2)
                 orderBook = self.api.orderBook()
                 order_entries = orderBook.get("data", [])
                 order_info = next(
@@ -305,6 +307,8 @@ class AngelAPI:
 
             if order_response :
                 orderid = order_response
+
+                time.sleep(2)
                 orderBook = self.api.orderBook()
 
                 order_entries = orderBook.get("data", [])
@@ -407,6 +411,7 @@ class AngelAPI:
                 # Angel Broking modify order requires price and trigger to be adjusted/present
                 adjusted_price = _calculate_adjusted_price('SELL', order_type, price)
 
+                time.sleep(2)
                 modify_response = self.api.modifyOrder(
                     ordertype=order_type.upper(),
                     price=adjusted_price,
@@ -454,11 +459,14 @@ class AngelAPI:
             raise NotLoggedInError("Cannot fetch holdings: User is not logged in.")
 
         # --- Fetch cash and limits ---
+
+        time.sleep(2)
         limits_response = self.api.rmsLimit()
         cash = float(limits_response.get('data', {}).get('availablecash', 0.0))
         logger.info(f"Available Cash: {cash}")
 
         # --- Fetch holdings ---
+        time.sleep(2)
         holdings_response = self.api.allholding()
         raw_holdings = holdings_response.get('data', {}).get('holdings', [])
         if not raw_holdings:
