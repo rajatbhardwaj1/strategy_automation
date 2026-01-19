@@ -406,20 +406,28 @@ class AngelAPI:
 
             # --- Modify order if current sell price is higher ---
             if current_price > previous_price:
-                orderno = existing_order['uniqueorderid']
+                orderno = existing_order['orderid']
 
                 # Angel Broking modify order requires price and trigger to be adjusted/present
                 adjusted_price = _calculate_adjusted_price('SELL', order_type, price)
 
                 time.sleep(2)
-                modify_response = self.api.modifyOrder(
-                    ordertype=order_type.upper(),
-                    price=adjusted_price,
-                    triggerprice=trigger,  # Should be None if not SL order, otherwise a float
-                    quantity=qty,
-                    orderid=orderno,
-                    variety=existing_order.get('variety', 'NORMAL'),
-                )
+
+                modifyparams = {
+                    "variety": existing_order.get('variety', 'NORMAL'),
+                    "orderid": orderno,
+                    "ordertype": order_type.upper(),
+                    "producttype": "DELIVERY",
+                    "duration": "DAY",
+                    "price": adjusted_price,
+                    "quantity": qty,
+                    "tradingsymbol": tradingsymbol_full,
+                    "symboltoken": token,
+                    "exchange": exch,
+                    "triggerprice": trigger,
+
+                }
+                modify_response = self.api.modifyOrder(modifyparams)
 
                 if modify_response and modify_response.get("message") == 'SUCCESS':
                     msg = f"Sell order modified for {symbol}. New price: {current_price}"
