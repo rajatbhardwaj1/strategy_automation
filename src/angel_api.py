@@ -234,6 +234,30 @@ class AngelAPI:
             ]
         return active_orders
 
+    def _get_active_sell_orders(self, symbol):
+        time.sleep(2)
+        orders_data = self.api.orderBook()
+        if not orders_data or orders_data.get('status') is False:
+            logger.warning("Failed to fetch order book.")
+            return pd.DataFrame()
+
+        orders = pd.DataFrame(orders_data['data'])
+        tradingsymbol_full = f"{symbol}-EQ"
+
+        # Check for existence of required columns before filtering
+        required_cols = ['tradingsymbol', 'transactiontype', 'status']
+        if not all(col in orders.columns for col in required_cols):
+            logger.warning(
+                f"Order book response missing required columns for filtering: {required_cols}, current cols: {orders.columns}")
+            return pd.DataFrame()
+
+        active_orders = orders[
+            (orders['tradingsymbol'] == tradingsymbol_full) &
+            (orders['transactiontype'] == "SELL")
+            ]
+        return active_orders
+
+
     # ------------------
     # Order Placement Methods (Refactored)
     # ------------------
@@ -360,7 +384,10 @@ class AngelAPI:
 
         if self._is_existing_order_active(symbol, 'BUY'):
             return {"status": False, "message": f"Active BUY order for {symbol} already exists."}
-
+        # due to high volatility, selling threshold as well as buy threshold is being crossed, so we are not gonna buy what is being sold.
+        # !! to do --> test if not selling is more optimal? if its still in buy signals, maybe hold it??
+        if self._is_sold_today(symbol):
+            return {"status": False, "message": f"Active SELL order for {symbol} already exists."}
         # --- Execute Order ---
         return self._execute_order_placement(
             symbol=symbol,
@@ -531,6 +558,22 @@ class AngelAPI:
         if not active_orders.empty:
             logger.warning(
                 f"Order check blocked: Active order for {symbol} ({side}) already exists. "
+                f"ID: {active_orders['uniqueorderid'].iloc[0]}"
+            )
+            return True
+
+        return False
+
+    def _is_sold_today(self, symbol) -> bool:
+        if not self.is_logged_in or not self.api:
+            logger.warning("Attempted _is_existing_order_active check while logged out.")
+            return False
+
+        active_orders = self._get_active_sell_orders(symbol)
+
+        if not active_orders.empty:
+            logger.warning(
+                f"Order check blocked: Active order for {symbol} SELL already exists. "
                 f"ID: {active_orders['uniqueorderid'].iloc[0]}"
             )
             return True
