@@ -3,7 +3,7 @@ import logging
 import pandas as pd
 from src.strategy import ETFStrategy
 from src.shoonya_api import ShoonyaAPI
-from src.utils import load_config, load_strategy_config
+from src.utils import load_config
 
 # ---------------------------
 # Logging Setup
