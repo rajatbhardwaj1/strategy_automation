@@ -1,7 +1,7 @@
 import asyncio
 import logging
 
-from telegram import Update
+from telegram import BotCommand, Update
 from telegram.ext import Application, CommandHandler, ContextTypes
 
 from src.utils import fetch_all_etf_data, format_etf_list_message
@@ -49,8 +49,20 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     )
 
 
+BOT_COMMANDS = [
+    BotCommand("show_etfs", "Show live ETF snapshot (LTP/DMA/%diff)"),
+    BotCommand("start", "Show available commands"),
+]
+
+
+async def _post_init(application: Application) -> None:
+    # Registers the commands with Telegram so they show up as tappable
+    # suggestions in the client's "/" command menu.
+    await application.bot.set_my_commands(BOT_COMMANDS)
+
+
 def build_application(bot_token: str) -> Application:
-    application = Application.builder().token(bot_token).build()
+    application = Application.builder().token(bot_token).post_init(_post_init).build()
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("show_etfs", show_etfs))
     return application
