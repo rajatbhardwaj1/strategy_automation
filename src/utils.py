@@ -136,3 +136,23 @@ def format_buy_signal_message(etfs_to_buy: pd.DataFrame) -> str:
         )
 
     return "\n".join(lines)
+
+
+def format_etf_list_message(etf_df: pd.DataFrame) -> str:
+    """
+    Format the full ETF snapshot (LTP, DMA, % diff) as a monospaced table
+    for display in a Telegram message. Sorted by pct_diff ascending
+    (most fallen first), matching fetch_all_etf_data's ordering.
+    """
+    if etf_df.empty:
+        return "⚠️ No ETF data available right now."
+
+    header = f"{'ETF':<12}{'LTP':>10}{'DMA':>10}{'%Diff':>9}"
+    lines = [header, "-" * len(header)]
+    for _, row in etf_df.iterrows():
+        pct = row["pct_diff"]
+        pct_str = f"{pct:.2f}" if pct is not None else "N/A"
+        lines.append(f"{row['etf']:<12}{row['ltp']:>10}{row['dma']:>10}{pct_str:>9}")
+
+    table = "\n".join(lines)
+    return f"📊 *ETF Snapshot* ({len(etf_df)} funds)\n```\n{table}\n```"

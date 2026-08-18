@@ -2,6 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
+      <module fileurl="file://$PROJECT_DIR$/../../playground/.idea/playground.iml" filepath="$PROJECT_DIR$/../../playground/.idea/playground.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/strategy-automation.iml" filepath="$PROJECT_DIR$/.idea/strategy-automation.iml" />
     </modules>
   </component>
