@@ -3,7 +3,7 @@ import logging
 from src.utils import load_config
 from src.telegram_bot import build_application
 
-LOG_FILE = "logs/webhook_server.log"
+LOG_FILE = "logs/run_bot.log"
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(levelname)s - %(message)s",
@@ -15,19 +15,14 @@ logger = logging.getLogger(__name__)
 
 def main():
     telegram_cfg = load_config(section="telegram")
-    webhook_cfg = load_config(section="telegram_webhook")
-
     bot_token = telegram_cfg["bot_token"]
+
     application = build_application(bot_token)
 
-    logger.info("Starting Telegram webhook server...")
-    application.run_webhook(
-        listen=webhook_cfg.get("listen_host", "127.0.0.1"),
-        port=int(webhook_cfg.get("port", 8443)),
-        url_path=webhook_cfg["url_path"],
-        webhook_url=webhook_cfg["webhook_url"],
-        secret_token=webhook_cfg["secret_token"],
-    )
+    logger.info("Starting Telegram bot via polling...")
+    # run_polling() calls bot.delete_webhook() internally first, so any
+    # previously registered webhook is cleared automatically.
+    application.run_polling()
 
 
 if __name__ == "__main__":
