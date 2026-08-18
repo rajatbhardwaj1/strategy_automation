@@ -156,3 +156,33 @@ def format_etf_list_message(etf_df: pd.DataFrame) -> str:
 
     table = "\n".join(lines)
     return f"📊 *ETF Snapshot* ({len(etf_df)} funds)\n```\n{table}\n```"
+
+
+def format_portfolio_message(holdings_df: pd.DataFrame, profit_threshold: float = 6.5) -> str:
+    """
+    Format current holdings as a monospaced table, including the sell
+    target price (buy_price appreciated by profit_threshold%, matching
+    the trailing-profit sell trigger used by ETFStrategy).
+    """
+    if holdings_df.empty:
+        return "📭 No holdings found."
+
+    header = f"{'ETF':<12}{'Qty':>6}{'Buy':>9}{'LTP':>9}{'Gain%':>8}{'SellAt':>9}"
+    lines = [header, "-" * len(header)]
+    for _, row in holdings_df.iterrows():
+        sell_target = round(row["buy_price"] * (1 + profit_threshold / 100), 2)
+        lines.append(
+            f"{row['etf']:<12}{row['held_qty']:>6}{row['buy_price']:>9.2f}"
+            f"{row['ltp']:>9.2f}{row['pct_diff']:>8.2f}{sell_target:>9.2f}"
+        )
+    table = "\n".join(lines)
+
+    total_invested = holdings_df["invested"].sum()
+    total_current = (holdings_df["ltp"] * holdings_df["held_qty"]).sum()
+    total_pct = round((total_current - total_invested) / total_invested * 100, 2) if total_invested else 0.0
+    summary = f"\nInvested: ₹{total_invested:,.0f}  Current: ₹{total_current:,.0f}  Overall: {total_pct:+.2f}%"
+
+    return (
+        f"💼 *Portfolio* ({len(holdings_df)} holdings, sell target = buy price +{profit_threshold}%)\n"
+        f"```\n{table}\n```{summary}"
+    )
