@@ -157,73 +157,85 @@ class ETFStrategy:
     # -----------------------------------
     # Buy Logic
     # -----------------------------------
+    @staticmethod
+    def _notify_skip(symbol: str, reason: str) -> None:
+        """
+        Notify (and log) whenever a buy candidate is skipped without an order
+        being placed, so a silent no-trade day is never a mystery.
+        """
+        logger.info(f"Buy skipped for {symbol}: {reason}")
+        send_telegram_message(
+            f"⏭️ **Buy Skipped**\n"
+            f"Symbol: {symbol}\n"
+            f"Reason: {reason}"
+        )
+
     def buy_etfs(self, etfs_to_buy: pd.DataFrame, held_etfs: pd.DataFrame, cash: float) :
         """
         Buy selected ETFs, averaging down existing positions where applicable.
         """
+        if etfs_to_buy.empty:
+            send_telegram_message("📉 **No Buy Candidates**\nNo ETF qualified for a buy signal today.")
+            return
+
         total_value = cash + (held_etfs["ltp"] * held_etfs["held_qty"]).sum()
         buy_count = 0
+        skip_count = 0
 
         for _, row in etfs_to_buy.iterrows():
-            if buy_count >= self.max_daily_buys:
-                logger.info("Max daily buy limit reached.")
-                break
-
             symbol = row["etf"]
-            pct_diff = row["pct_diff"]
-            current_price = row["ltp"]
 
-            # Skip ETFs not in downtrend
-            if pct_diff > 0:
+            if buy_count >= self.max_daily_buys:
+                skip_count += 1
+                self._notify_skip(symbol, f"Max daily buy limit ({self.max_daily_buys}) already reached.")
                 continue
 
-            buy_amount = min(total_value / self.buy_divisor, cash + self.hydration)
-            shares = int(buy_amount // current_price)
-            if shares <= 0:
-                msg = (
-                    f"⚠️ **Insufficient Funds**\n"
-                    f"Symbol: {symbol}\n"
-                    f"Req: ₹{current_price}\n"
-                    f"Cash: ₹{cash:.2f}"
-                )
-                send_telegram_message(msg)
-                continue  # Uncommented this so the loop skips to the next item
+            # Each candidate is isolated: one failure must not abort the rest.
+            try:
+                pct_diff = row["pct_diff"]
+                current_price = row["ltp"]
 
-            if symbol in held_etfs["etf"].values:
-                held_row = held_etfs.loc[held_etfs["etf"] == symbol].iloc[0]
-                buy_price = held_row["buy_price"]
-                loss_pct = (buy_price - current_price) / buy_price * 100
+                # Skip ETFs not in downtrend
+                if pct_diff > 0:
+                    skip_count += 1
+                    self._notify_skip(symbol, f"Not in downtrend ({pct_diff:.2f}% above DMA).")
+                    continue
 
-                if loss_pct > self.avg_down_threshold:
+                buy_amount = min(total_value / self.buy_divisor, cash + self.hydration)
+                shares = int(buy_amount // current_price)
+                if shares <= 0:
+                    skip_count += 1
+                    self._notify_skip(
+                        symbol,
+                        f"Insufficient funds - price ₹{current_price}, usable cash ₹{cash:.2f}."
+                    )
+                    continue
+
+                if symbol in held_etfs["etf"].values:
+                    held_row = held_etfs.loc[held_etfs["etf"] == symbol].iloc[0]
+                    buy_price = held_row["buy_price"]
+                    loss_pct = (buy_price - current_price) / buy_price * 100
+
+                    if loss_pct <= self.avg_down_threshold:
+                        skip_count += 1
+                        self._notify_skip(
+                            symbol,
+                            f"Held at ₹{buy_price:.2f}, loss {loss_pct:.2f}% has not crossed "
+                            f"avg-down threshold {self.avg_down_threshold}%."
+                        )
+                        continue
+
                     logger.info(f"Averaging down {symbol}: {loss_pct:.2f}% loss.")
-
+                    action = "AVERAGE DOWN"
+                    detail = f"Current Loss: {loss_pct:.2f}%"
                     response = self._place_buy_order(symbol, shares, current_price, "LIMIT", None, "BUY_AVERAGE_DOWN")
 
-                    if response.get("status") and response.get("final_status") != 'rejected':
-                        cash -= shares * current_price
-                        buy_count += 1
-
-                        # Success Message
-                        send_telegram_message(
-                            f"✅ **AVERAGE DOWN Executed**\n"
-                            f"Symbol: {symbol}\n"
-                            f"Qty: {shares} @ ₹{current_price}\n"
-                            f"Current Loss: {loss_pct:.2f}%"
-                        )
-                    else:
-                        # Failure Message
-                        error_reason = response.get('message', 'Unknown Error')
-                        send_telegram_message(
-                            f"❌ **Avg Down Failed**\n"
-                            f"Symbol: {symbol}\n"
-                            f"Reason: {error_reason}"
-                        )
-
                 # Logic for New Buy (Not currently held)
-            else:
-                logger.info(f"New buy for {symbol} at {current_price}")
-
-                response = self._place_buy_order(symbol, shares, current_price, "LIMIT", None, "NEW_BUY")
+                else:
+                    logger.info(f"New buy for {symbol} at {current_price}")
+                    action = "NEW BUY"
+                    detail = f"Allocated: ₹{shares * current_price:.2f}"
+                    response = self._place_buy_order(symbol, shares, current_price, "LIMIT", None, "NEW_BUY")
 
                 if response.get("status") and response.get("final_status") != 'rejected':
                     cash -= shares * current_price
@@ -231,19 +243,37 @@ class ETFStrategy:
 
                     # Success Message
                     send_telegram_message(
-                        f"✅ **NEW BUY Executed**\n"
+                        f"✅ **{action} Executed**\n"
                         f"Symbol: {symbol}\n"
                         f"Qty: {shares} @ ₹{current_price}\n"
-                        f"Allocated: ₹{shares * current_price:.2f}"
+                        f"{detail}"
                     )
                 else:
                     # Failure Message
+                    skip_count += 1
                     error_reason = response.get('message', 'Unknown Error')
                     send_telegram_message(
-                        f"❌ **New Buy Failed**\n"
+                        f"❌ **{action} Failed**\n"
                         f"Symbol: {symbol}\n"
                         f"Reason: {error_reason}"
                     )
+
+            except Exception as e:
+                skip_count += 1
+                logger.exception(f"Error while processing buy for {symbol}: {e}")
+                send_telegram_message(
+                    f"🔥 **Buy Error**\n"
+                    f"Symbol: {symbol}\n"
+                    f"Error: {type(e).__name__}: {e}\n"
+                    f"Moving on to the next candidate."
+                )
+
+        if buy_count == 0:
+            send_telegram_message(
+                f"⚠️ **No Buys Executed Today**\n"
+                f"Candidates evaluated: {len(etfs_to_buy)}\n"
+                f"Skipped / failed: {skip_count}"
+            )
 
 
 
@@ -253,21 +283,37 @@ class ETFStrategy:
 
     # Call every 10 mins
     def sell_order_processing(self) -> None:
-        held_etfs, cash  = self.fetch_holdings_and_cash()
-        to_be_trailed = held_etfs[held_etfs["pct_diff"] > self.profit_threshold]
-        if not to_be_trailed.empty:
-            self.process_trailing_profit(to_be_trailed)
+        try:
+            held_etfs, cash  = self.fetch_holdings_and_cash()
+            to_be_trailed = held_etfs[held_etfs["pct_diff"] > self.profit_threshold]
+            if not to_be_trailed.empty:
+                self.process_trailing_profit(to_be_trailed)
+        except Exception as e:
+            logger.exception(f"Trailing sell cycle failed: {e}")
+            send_telegram_message(
+                f"\U0001f525 **Trailing Sell Cycle Failed**\n"
+                f"Error: {type(e).__name__}: {e}\n"
+                f"No sell orders were placed in this run."
+            )
 
 
     # Call only once at 3.25 PM
     def buy_order_processing(self):
-        held_etfs, cash  = self.fetch_holdings_and_cash()
-        etf_data = fetch_all_etf_data()
-        etfs_to_buy = identify_buy_signals(etf_data, top_n=3)
         try:
-            message = format_buy_signal_message(etfs_to_buy)
-            send_telegram_message(message)
+            held_etfs, cash  = self.fetch_holdings_and_cash()
+            etf_data = fetch_all_etf_data()
+            etfs_to_buy = identify_buy_signals(etf_data, top_n=3)
+            try:
+                message = format_buy_signal_message(etfs_to_buy)
+                send_telegram_message(message)
+            except Exception as e:
+                send_telegram_message(f"Exception in sending buy signals : {e}")
+            self.buy_etfs(etfs_to_buy, held_etfs, cash)
         except Exception as e:
-            send_telegram_message(f"Exception in sending buy signals : {e}")
-        self.buy_etfs(etfs_to_buy, held_etfs, cash)
+            logger.exception(f"Daily buy cycle failed: {e}")
+            send_telegram_message(
+                f"\U0001f525 **Daily Buy Cycle Failed**\n"
+                f"Error: {type(e).__name__}: {e}\n"
+                f"No buy orders were placed today."
+            )
 

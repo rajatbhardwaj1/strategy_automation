@@ -3,6 +3,7 @@ import os
 from datetime import datetime
 from typing import Dict
 from src.utils import load_config
+from src.telegram_utils import send_telegram_message
 from src.shoonya_api import ShoonyaAPI
 from src.strategy import ETFStrategy
 
@@ -42,6 +43,7 @@ class StrategyRunner:
             self.strategy.sell_order_processing()
         except Exception as e:
             logger.exception(f"Error in trailing sell: {e}")
+            send_telegram_message(f"\U0001f525 **Trailing Sell Failed**\nError: {type(e).__name__}: {e}")
 
     def run_buy(self):
         """
@@ -52,6 +54,7 @@ class StrategyRunner:
             self.strategy.buy_order_processing()
         except Exception as e:
             logger.exception(f"Error in buy processing: {e}")
+            send_telegram_message(f"\U0001f525 **Daily Buy Failed**\nError: {type(e).__name__}: {e}")
 
 
 if __name__ == "__main__":

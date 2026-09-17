@@ -5,6 +5,7 @@ from datetime import datetime, time as dt_time, timedelta
 import schedule
 
 from src.utils import load_config
+from src.telegram_utils import send_telegram_message
 from src.runner import StrategyRunner   # your runner file
 import warnings
 from urllib3.exceptions import NotOpenSSLWarning
@@ -47,6 +48,9 @@ def run_trailing_sell():
         logger.info("API login successful")
     except Exception as e:
         logger.exception(f"Login failed: {e}")
+        send_telegram_message(
+            f"\U0001f525 **Trailing Sell Aborted**\nLogin failed: {type(e).__name__}: {e}"
+        )
         raise SystemExit(1)
 
     runner = StrategyRunner(api, strategy_config)
@@ -55,6 +59,7 @@ def run_trailing_sell():
         runner.run_trailing_sell()
     except Exception as e:
         logger.exception(f"Error in trailing sell: {e}")
+        send_telegram_message(f"\U0001f525 **Trailing Sell Crashed**\nError: {type(e).__name__}: {e}")
 
     finally:
         try:
@@ -78,6 +83,9 @@ def run_buy():
         logger.info("API login successful")
     except Exception as e:
         logger.exception(f"Login failed: {e}")
+        send_telegram_message(
+            f"\U0001f525 **Daily Buy Aborted**\nLogin failed: {type(e).__name__}: {e}"
+        )
         raise SystemExit(1)
     runner = StrategyRunner(api, strategy_config)
     logger.info("=== Running Daily Buy ===")
@@ -85,6 +93,7 @@ def run_buy():
         runner.run_buy()
     except Exception as e:
         logger.exception(f"Error in daily buy: {e}")
+        send_telegram_message(f"\U0001f525 **Daily Buy Crashed**\nError: {type(e).__name__}: {e}")
 
     finally:
         try:
