@@ -1,8 +1,8 @@
 import asyncio
 import logging
 
-from telegram import BotCommand, Update
-from telegram.ext import Application, CommandHandler, ContextTypes
+from telegram import BotCommand, BotCommandScopeChat, BotCommandScopeDefault, Update
+from telegram.ext import Application, CommandHandler, ContextTypes, filters
 
 from src.utils import fetch_all_etf_data, format_etf_list_message, format_portfolio_message, load_config
 from src.angel_api import AngelAPI
@@ -109,14 +109,33 @@ BOT_COMMANDS = [
 
 
 async def _post_init(application: Application) -> None:
-    # Registers the commands with Telegram so they show up as tappable
-    # suggestions in the client's "/" command menu.
-    await application.bot.set_my_commands(BOT_COMMANDS)
+    """
+    Publish the "/" command menu to the owner's chat only.
+
+    set_my_commands() with no scope registers globally, and Telegram stores
+    that list server-side - so anyone who opens the bot sees every command
+    listed. The delete clears any previously-registered global list; without
+    it the old global registration survives on Telegram's side and keeps
+    advertising the commands to everyone regardless of what we set here.
+    """
+    owner_id = load_config(section="telegram")["chat_id"]
+    await application.bot.delete_my_commands(scope=BotCommandScopeDefault())
+    await application.bot.set_my_commands(
+        BOT_COMMANDS, scope=BotCommandScopeChat(chat_id=owner_id)
+    )
 
 
 def build_application(bot_token: str) -> Application:
+    """
+    Every handler is gated on an owner-only chat filter. A bot's username is
+    discoverable, and these commands expose live holdings, so updates from any
+    other chat must not reach a handler at all. Unauthorized chats get silence
+    rather than a rejection notice - a reply would confirm the bot is live.
+    """
+    owner_only = filters.Chat(chat_id=load_config(section="telegram")["chat_id"])
+
     application = Application.builder().token(bot_token).post_init(_post_init).build()
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(CommandHandler("show_etfs", show_etfs))
-    application.add_handler(CommandHandler("portfolio", show_portfolio))
+    application.add_handler(CommandHandler("start", start, filters=owner_only))
+    application.add_handler(CommandHandler("show_etfs", show_etfs, filters=owner_only))
+    application.add_handler(CommandHandler("portfolio", show_portfolio, filters=owner_only))
     return application
