@@ -178,7 +178,15 @@ class ETFStrategy:
             send_telegram_message("📉 **No Buy Candidates**\nNo ETF qualified for a buy signal today.")
             return
 
-        total_value = cash + (held_etfs["ltp"] * held_etfs["held_qty"]).sum()
+        # Hydration is a loan parked in the broker account: the broker reports it
+        # as available cash and it is fully spendable, but it is not my capital.
+        # So it is netted out of the sizing base (the numerator) and only the
+        # spendable ceiling below is allowed to see it.
+        total_value = cash + (held_etfs["ltp"] * held_etfs["held_qty"]).sum() - self.hydration
+        logger.info(
+            f"Sizing base excluding hydration: {total_value:.2f} "
+            f"(cash={cash:.2f}, hydration={self.hydration})"
+        )
         buy_count = 0
         skip_count = 0
 
@@ -201,13 +209,16 @@ class ETFStrategy:
                     self._notify_skip(symbol, f"Not in downtrend ({pct_diff:.2f}% above DMA).")
                     continue
 
-                buy_amount = min(total_value / self.buy_divisor, cash + self.hydration)
+                # cash already contains the hydration loan, so it is the full
+                # spendable ceiling; adding hydration again would double-count it.
+                buy_amount = min(total_value / self.buy_divisor, cash)
                 shares = int(buy_amount // current_price)
                 if shares <= 0:
                     skip_count += 1
                     self._notify_skip(
                         symbol,
-                        f"Insufficient funds - price ₹{current_price}, usable cash ₹{cash:.2f}."
+                        f"Insufficient funds - price ₹{current_price}, usable cash ₹{cash:.2f}, "
+                        f"sizing base excluding hydration ₹{total_value:.2f}."
                     )
                     continue
 

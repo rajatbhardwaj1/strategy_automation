@@ -26,10 +26,12 @@ async def _send_chunked(update: Update, text: str, parse_mode: str = "Markdown")
 
 async def show_etfs(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """
-    /show_etfs - fetches live LTP/DMA/%diff for every tracked ETF and
-    replies with the snapshot. fetch_all_etf_data() is a slow, blocking,
-    network-bound call (yfinance, with retries per symbol), so it's run
-    in a worker thread to avoid blocking the bot's event loop.
+    /show_etfs - fetches live LTP/DMA/%diff for every tracked ETF, overlays
+    the position held in each one (qty, average buy price, amount bought for,
+    sell target) and replies with the snapshot. fetch_all_etf_data() is a slow,
+    blocking, network-bound call (yfinance, with retries per symbol) and the
+    holdings fetch logs into the broker, so both run in a worker thread to
+    avoid blocking the bot's event loop.
     """
     chat_id = update.effective_chat.id
     logger.info(f"/show_etfs requested by chat_id={chat_id}")
@@ -37,7 +39,17 @@ async def show_etfs(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
     try:
         etf_df = await asyncio.to_thread(fetch_all_etf_data)
-        message = format_etf_list_message(etf_df)
+
+        # Positions are an overlay: if the broker login fails the market
+        # snapshot is still worth sending, just with NA in those columns.
+        try:
+            holdings_df, profit_threshold = await asyncio.to_thread(_fetch_portfolio_snapshot)
+        except Exception as e:
+            logger.warning(f"Holdings unavailable for /show_etfs: {e}", exc_info=True)
+            holdings_df = None
+            profit_threshold = load_config(section="strategy").get("profit_threshold", 6.5)
+
+        message = format_etf_list_message(etf_df, holdings_df, profit_threshold)
         await _send_chunked(update, message)
     except Exception as e:
         logger.exception(f"Error handling /show_etfs: {e}")
@@ -96,13 +108,13 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text(
         "👋 Strategy bot is live.\n\n"
         "Available commands:\n"
-        "/show_etfs - show live ETF snapshot\n"
+        "/show_etfs - show live ETF snapshot with your position\n"
         "/portfolio - show holdings with sell targets"
     )
 
 
 BOT_COMMANDS = [
-    BotCommand("show_etfs", "Show live ETF snapshot (LTP/DMA/%diff)"),
+    BotCommand("show_etfs", "Show live ETF snapshot with your position"),
     BotCommand("portfolio", "Show holdings with sell targets"),
     BotCommand("start", "Show available commands"),
 ]

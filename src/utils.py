@@ -138,24 +138,63 @@ def format_buy_signal_message(etfs_to_buy: pd.DataFrame) -> str:
     return "\n".join(lines)
 
 
-def format_etf_list_message(etf_df: pd.DataFrame) -> str:
+def format_etf_list_message(
+    etf_df: pd.DataFrame,
+    holdings_df: Optional[pd.DataFrame] = None,
+    profit_threshold: float = THRESHOLD_PROFIT,
+) -> str:
     """
     Format the full ETF snapshot (LTP, DMA, % diff) as a monospaced table
     for display in a Telegram message. Sorted by pct_diff ascending
     (most fallen first), matching fetch_all_etf_data's ordering.
+
+    When holdings_df is supplied, every row also carries the position in that
+    ETF: quantity held, average buy price, the total amount it was bought for,
+    and the price the trailing-profit sell aims at (average buy price
+    +profit_threshold%, matching ETFStrategy). ETFs that are not held show NA
+    in those four columns.
     """
     if etf_df.empty:
         return "⚠️ No ETF data available right now."
 
-    header = f"{'ETF':<12}{'LTP':>10}{'DMA':>10}{'%Diff':>9}"
+    # Position lookup by symbol; holdings_df is already de-duplicated on "etf".
+    held = {}
+    if holdings_df is not None and not holdings_df.empty:
+        held = {row["etf"]: row for _, row in holdings_df.iterrows()}
+
+    header = (
+        f"{'ETF':<11}{'LTP':>9}{'DMA':>9}{'%Diff':>7}"
+        f"{'Qty':>5}{'AvgBuy':>9}{'Bought':>10}{'SellAt':>9}"
+    )
     lines = [header, "-" * len(header)]
     for _, row in etf_df.iterrows():
         pct = row["pct_diff"]
-        pct_str = f"{pct:.2f}" if pct is not None else "N/A"
-        lines.append(f"{row['etf']:<12}{row['ltp']:>10}{row['dma']:>10}{pct_str:>9}")
+        # pandas coerces a missing pct_diff to NaN, which is not None - so the
+        # emptiness check has to be isna(), otherwise the cell renders "nan".
+        pct_str = "N/A" if pd.isna(pct) else f"{pct:.2f}"
+
+        position = held.get(row["etf"])
+        if position is None:
+            qty_str = avg_str = bought_str = sell_str = "NA"
+        else:
+            qty = int(position["held_qty"])
+            avg_price = float(position["buy_price"])
+            qty_str = f"{qty}"
+            avg_str = f"{avg_price:.2f}"
+            bought_str = f"{qty * avg_price:,.0f}"
+            sell_str = f"{avg_price * (1 + profit_threshold / 100):.2f}"
+
+        lines.append(
+            f"{row['etf']:<11}{row['ltp']:>9.2f}{row['dma']:>9.2f}{pct_str:>7}"
+            f"{qty_str:>5}{avg_str:>9}{bought_str:>10}{sell_str:>9}"
+        )
 
     table = "\n".join(lines)
-    return f"📊 *ETF Snapshot* ({len(etf_df)} funds)\n```\n{table}\n```"
+    return (
+        f"📊 *ETF Snapshot* ({len(etf_df)} funds, {len(held)} held; "
+        f"SellAt = AvgBuy +{profit_threshold}%)\n"
+        f"```\n{table}\n```"
+    )
 
 
 def format_portfolio_message(holdings_df: pd.DataFrame, profit_threshold: float = 6.5) -> str:
