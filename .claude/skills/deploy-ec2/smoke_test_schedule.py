@@ -18,16 +18,27 @@ import os
 import sys
 from datetime import datetime, timedelta
 
-# Python puts this script's directory (scripts/) on sys.path, not the cwd, so
-# the repo root has to be added explicitly for "src" to be importable - unlike
-# main.py, which already lives at the root.
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# Python puts this script's own directory on sys.path, not the cwd, so the repo
+# root has to be added explicitly for "src" to be importable - unlike main.py,
+# which already lives at the root. Everything in this project resolves paths
+# relative to the repo root ("src/config.yaml", "logs/*.log"), so insist on
+# being run from there rather than guessing.
+REPO_ROOT = os.getcwd()
+if not (os.path.isfile(os.path.join(REPO_ROOT, "main.py"))
+        and os.path.isdir(os.path.join(REPO_ROOT, "src"))):
+    sys.exit("Run this from the repo root: cd ~/strategy_automation && "
+             "./venv/bin/python .claude/skills/deploy-ec2/smoke_test_schedule.py")
+sys.path.insert(0, REPO_ROOT)
 
 import schedule
 
 from src.utils import load_config
 from src.telegram_utils import send_telegram_message
 from src.angel_api import AngelAPI
+
+# Line-buffer stdout, otherwise progress is invisible until exit - under pm2
+# that makes a working run look like a silent failure.
+sys.stdout.reconfigure(line_buffering=True)
 
 logging.basicConfig(
     level=logging.INFO,

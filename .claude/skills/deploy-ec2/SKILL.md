@@ -86,7 +86,7 @@ pm2 kill && sudo systemctl start pm2-ubuntu && pm2 list
 Both apps should come back `online`. If they don't, `pm2 start
 ecosystem.config.js` recovers.
 
-### 6. Verify (read-only)
+### 6. Verify the stack (read-only)
 
 ```bash
 pm2 list                      # both online, restarts=0
@@ -98,22 +98,46 @@ Then have the user send `/portfolio` and `/show_etfs` in Telegram. Those two
 commands exercise broker TOTP login, holdings fetch, yfinance and Telegram
 delivery — most of the stack, with no order placement.
 
-To prove the `schedule` wiring fires at the right IST wall-clock time, run the
-read-only smoke test. It registers a job through the exact mechanism `main.py`
-uses, but only logs in and reads holdings:
+### 7. Prove the scheduler fires — `smoke_test_schedule.py`
+
+This is the sign-off step, and the stand-in for a live order test. The bundled
+`smoke_test_schedule.py` (next to this file) registers a job through the exact
+`getattr(schedule.every(), <weekday>).at("HH:MM")` mechanism `main.py` uses,
+then only logs into the broker and reads holdings — no order-placing code path
+is reachable from it. **Run it from the repo root**, under pm2, so the pm2
+environment is what gets exercised:
 
 ```bash
 pm2 delete schedule-smoke 2>/dev/null
-pm2 start scripts/smoke_test_schedule.py --name schedule-smoke \
-  --interpreter ./venv/bin/python --no-autorestart --no-daemon -- 2
+pm2 start .claude/skills/deploy-ec2/smoke_test_schedule.py --name schedule-smoke \
+  --interpreter ./venv/bin/python --no-autorestart -- 2
+pm2 logs schedule-smoke --lines 50
 ```
 
-Fires 2 minutes out and sends a Telegram confirmation. Exit code 0 means it
-fired on time; it `sys.exit(1)`s if it misses by 3 minutes. pm2 shows a clean
-exit as `stopped` and a failure as `errored`. Pass `--no-daemon` or set
-`PYTHONUNBUFFERED=1`, otherwise stdout stays buffered and the out log looks
-empty even on success — judge by exit status and `logs/`, not an empty log.
-Clean up with `pm2 delete schedule-smoke`.
+It fires 2 minutes out and sends a Telegram confirmation ending "No orders were
+placed." Pass a different integer to change the delay.
+
+Reading the result:
+
+- **Exit code 0** — fired on time. pm2 reports a clean exit as `stopped`.
+- **`errored` in pm2** — it missed the target by 3 minutes and `sys.exit(1)`d.
+  The scheduler would miss real trade times; investigate the clock and TZ.
+- It also sends a Telegram warning on failure, so an absent message is itself
+  a signal.
+
+Two things that have made a passing run look broken:
+
+- **Run it before midnight IST, on a weekday.** It registers on the target
+  time's weekday, matching `main.py`'s Mon–Fri registration. Started late on a
+  Friday night with a delay that rolls past midnight, the job lands on
+  Saturday, which `main.py` never schedules — nothing fires until Monday.
+- **An empty out log is not a failure.** Judge by exit status and the Telegram
+  message. (The script now line-buffers stdout, which fixes this.)
+
+Clean up: `pm2 delete schedule-smoke`.
+
+Verified working on Ubuntu 26.04 at 2026-11-06 23:17:00 IST: job fired on the
+target minute, broker login succeeded, Telegram message delivered.
 
 ## Traps this deployment has actually hit
 
