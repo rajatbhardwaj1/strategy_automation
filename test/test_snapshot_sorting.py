@@ -100,6 +100,26 @@ def test_holdings_sort_by_gain_and_invested():
         ["GOLDBEES", "NIFTYBEES"]
 
 
+def test_holdings_sort_by_absolute_pnl_not_percentage():
+    """
+    P&L and Gain% can disagree: NIFTYBEES has the better percentage (5.56% vs
+    3.13%) while GOLDBEES has made more money (250 vs 150), which is the whole
+    reason both buttons exist.
+    """
+    df = _holdings_df()
+    # GOLDBEES: 100 x 82.50 - 8000 = +250. NIFTYBEES: 10 x 285 - 2700 = +150.
+    assert _order(sort_holdings(df, "gain", descending=True)) == ["GOLDBEES", "NIFTYBEES"]
+    assert _order(sort_holdings(df, "gain", descending=False)) == ["NIFTYBEES", "GOLDBEES"]
+    assert _order(sort_holdings(df, "pct_diff", descending=True)) == ["NIFTYBEES", "GOLDBEES"]
+
+
+def test_gain_sort_does_not_leave_its_scratch_column_behind():
+    """The frame is handed straight to the formatter, which iterates columns."""
+    sorted_df = sort_holdings(_holdings_df(), "gain", descending=True)
+    assert "_sort" not in sorted_df.columns
+    assert list(sorted_df.columns) == list(_holdings_df().columns)
+
+
 def test_holdings_unknown_key_and_empty_frame_are_passed_through():
     assert _order(sort_holdings(_holdings_df(), "nonsense")) == _order(_holdings_df())
     assert sort_holdings(pd.DataFrame(), "pct_diff").empty

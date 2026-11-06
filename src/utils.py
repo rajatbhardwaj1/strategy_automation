@@ -197,6 +197,18 @@ def format_etf_list_message(
     )
 
 
+def holding_gain(row) -> float:
+    """
+    Absolute rupee P&L on a holding: current value minus what was paid.
+
+    Defined once because both the P&L column and its sort button need it, and
+    a second copy is how the two drift apart. "invested" is the broker's own
+    figure rather than qty x buy_price, so it stays consistent with the
+    portfolio footer, which sums that column.
+    """
+    return float(row["ltp"]) * float(row["held_qty"]) - float(row["invested"])
+
+
 def sort_etf_snapshot(
     etf_df: pd.DataFrame,
     holdings_df: Optional[pd.DataFrame] = None,
@@ -254,11 +266,23 @@ def sort_holdings(
 ) -> pd.DataFrame:
     """
     Reorder holdings by one column, for the tap-to-sort buttons on /portfolio.
-    Stable, so ties keep the broker's incoming order. The totals in
-    format_portfolio_message are order-independent.
+    Accepts the derived key "gain" (absolute rupee P&L) alongside the frame's
+    own columns. Stable, so ties keep the broker's incoming order. The totals
+    in format_portfolio_message are order-independent.
     """
     if holdings_df.empty:
         return holdings_df
+
+    # "gain" is derived rather than a column the broker returns, so it is
+    # computed here the same way the P&L column renders it.
+    if key == "gain":
+        df = holdings_df.copy()
+        df["_sort"] = df.apply(holding_gain, axis=1)
+        df = df.sort_values(
+            "_sort", ascending=not descending, na_position="last", kind="mergesort"
+        )
+        return df.drop(columns="_sort").reset_index(drop=True)
+
     if key not in holdings_df.columns:
         logger.warning(f"Unknown holdings sort key '{key}', leaving order unchanged.")
         return holdings_df
@@ -276,20 +300,34 @@ def format_portfolio_message(holdings_df: pd.DataFrame, profit_threshold: float 
     if holdings_df.empty:
         return "📭 No holdings found."
 
-    header = f"{'ETF':<12}{'Qty':>6}{'Buy':>9}{'LTP':>9}{'Gain%':>8}{'SellAt':>9}"
+    # Invested is per-row here and summed in the footer, so the amount a
+    # holding accounts for is visible rather than only its unit buy price -
+    # and the /portfolio "Invested" sort button now sorts a column you can see.
+    # Columns are trimmed to keep the row inside a phone's width; symbols run
+    # to 9 characters (MID150BEES), so 11 leaves room without wrapping.
+    header = (
+        f"{'ETF':<11}{'Qty':>5}{'Buy':>8}{'Invested':>10}"
+        f"{'LTP':>8}{'Gain%':>7}{'P&L':>9}{'SellAt':>8}"
+    )
     lines = [header, "-" * len(header)]
     for _, row in holdings_df.iterrows():
         sell_target = round(row["buy_price"] * (1 + profit_threshold / 100), 2)
         lines.append(
-            f"{row['etf']:<12}{row['held_qty']:>6}{row['buy_price']:>9.2f}"
-            f"{row['ltp']:>9.2f}{row['pct_diff']:>8.2f}{sell_target:>9.2f}"
+            f"{row['etf']:<11}{row['held_qty']:>5}{row['buy_price']:>8.2f}"
+            f"{float(row['invested']):>10,.0f}"
+            f"{row['ltp']:>8.2f}{row['pct_diff']:>7.2f}"
+            f"{holding_gain(row):>+9,.0f}{sell_target:>8.2f}"
         )
     table = "\n".join(lines)
 
     total_invested = holdings_df["invested"].sum()
     total_current = (holdings_df["ltp"] * holdings_df["held_qty"]).sum()
-    total_pct = round((total_current - total_invested) / total_invested * 100, 2) if total_invested else 0.0
-    summary = f"\nInvested: ₹{total_invested:,.0f}  Current: ₹{total_current:,.0f}  Overall: {total_pct:+.2f}%"
+    total_gain = total_current - total_invested
+    total_pct = round(total_gain / total_invested * 100, 2) if total_invested else 0.0
+    summary = (
+        f"\nInvested: ₹{total_invested:,.0f}  Current: ₹{total_current:,.0f}"
+        f"\nP&L: ₹{total_gain:+,.0f}  Overall: {total_pct:+.2f}%"
+    )
 
     return (
         f"💼 *Portfolio* ({len(holdings_df)} holdings, sell target = buy price +{profit_threshold}%)\n"

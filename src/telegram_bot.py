@@ -55,6 +55,7 @@ SORT_KEYS: Dict[str, List[Tuple[str, str, bool]]] = {
     ],
     "pf": [
         ("Gain%", "pct_diff", True),
+        ("P&L", "gain", True),
         ("Invested", "invested", True),
         ("ETF", "etf", False),
     ],
