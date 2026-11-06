@@ -229,6 +229,60 @@ def test_statement_dates_are_month_first():
     assert set(rows["date"]) == {"2026-09-24", "2026-11-05"}
 
 
+def test_charge_only_line_is_labelled_and_keyed_apart_from_its_fill():
+    """
+    Angel emits one charge line per order: zero qty, zero price, no Trade ID,
+    sharing the order id with the real fill. Without a distinct key the two
+    collide and one overwrites the other; without the label it looks like a
+    phantom trade.
+    """
+    rows = pd.DataFrame([
+        {"Scrip/Contract": "NIPPONAMC - NETFSILVER", "Buy/Sell": "Buy",
+         "Buy Price": 0, "Sell Price": None, "Quantity": 0, "Brokerage": 2,
+         "GST": 0.36, "STT": 0, "Sebi Tax": 0, "Exchange Turnover Charges": 0,
+         "Stamp Duty": 0, "Other Charges": 0, "IPFT Charges": 0,
+         "Order Type": "Intraday", "Segment": "CAPITAL", "Exchange": "NSE",
+         "Order ID": "1300000069950000", "Trade ID": None,
+         "Date": "10/29/25 0:00"},
+        {"Scrip/Contract": "NIPPONAMC - NETFSILVER", "Buy/Sell": "Buy",
+         "Buy Price": 141.19, "Sell Price": None, "Quantity": 1, "Brokerage": 0,
+         "GST": 0, "STT": 0, "Sebi Tax": 0, "Exchange Turnover Charges": 0,
+         "Stamp Duty": 0, "Other Charges": 0, "IPFT Charges": 0,
+         "Order Type": "Delivery", "Segment": "CAPITAL", "Exchange": "NSE",
+         "Order ID": "1300000069950000", "Trade ID": "608294336",
+         "Date": "10/29/25 0:00"},
+    ])
+    ledger, summary = statement_to_ledger(rows, "test.xlsx")
+    assert summary["charges_only"] == 1
+
+    charge_row = ledger[ledger["status"] == "charges_only"].iloc[0]
+    fill_row = ledger[ledger["status"] == "complete"].iloc[0]
+    assert charge_row["total_charges"] == pytest.approx(2.36)
+    assert charge_row["qty_filled"] == 0
+    # Distinct keys, so the merge keeps both.
+    assert ledger_key(charge_row.to_dict()) != ledger_key(fill_row.to_dict())
+
+
+def test_charge_only_rows_survive_a_merge_alongside_their_fill(tmp_path):
+    rows = pd.DataFrame([
+        {"Scrip/Contract": "NIP IND ETF IT", "Buy/Sell": "Buy", "Buy Price": 0,
+         "Sell Price": None, "Quantity": 0, "Brokerage": 2, "GST": 0.36,
+         "STT": 0, "Sebi Tax": 0, "Exchange Turnover Charges": 0,
+         "Stamp Duty": 0, "Other Charges": 0, "IPFT Charges": 0,
+         "Order Type": "Intraday", "Segment": "CAPITAL", "Exchange": "NSE",
+         "Order ID": "SAME", "Trade ID": None, "Date": "10/29/25 0:00"},
+        {"Scrip/Contract": "NIP IND ETF IT", "Buy/Sell": "Buy", "Buy Price": 31.0,
+         "Sell Price": None, "Quantity": 10, "Brokerage": 0, "GST": 0,
+         "STT": 0, "Sebi Tax": 0, "Exchange Turnover Charges": 0,
+         "Stamp Duty": 0, "Other Charges": 0, "IPFT Charges": 0,
+         "Order Type": "Delivery", "Segment": "CAPITAL", "Exchange": "NSE",
+         "Order ID": "SAME", "Trade ID": "T1", "Date": "10/29/25 0:00"},
+    ])
+    ledger_rows, _ = statement_to_ledger(rows, "test.xlsx")
+    merged, added, _ = merge_into_ledger(ledger_rows, str(tmp_path / "t.csv"))
+    assert added == 2 and len(merged) == 2
+
+
 def test_since_cutoff_excludes_older_trades():
     from datetime import date as _date
     rows, summary = statement_to_ledger(_statement_rows(), "test.csv",

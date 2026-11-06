@@ -148,6 +148,7 @@ def render_report(
             ["Period covered", f"{m['first_trade']} → {m['last_trade']}"],
             ["Filled orders", f"{m['orders_filled']:,}"],
             ["Cancelled or rejected", f"{m['orders_cancelled_or_rejected']:,}"],
+            ["Charge-only lines", f"{m['charges_only_rows']:,}"],
             ["Distinct ETFs traded", f"{m['symbols_traded']}"],
             ["Total bought", _money(m["buy_value"])],
             ["Total sold", _money(m["sell_value"])],

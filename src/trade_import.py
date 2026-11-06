@@ -187,10 +187,14 @@ def statement_to_ledger(
     """
     Convert parsed statement rows into ledger rows.
 
-    Every row in these statements is an executed fill - the statement has no
-    concept of a cancelled order - so qty_filled is the quantity and status is
-    "complete". Side decides which of the two mutually exclusive price columns
-    to read.
+    Rows are executed fills - the statement has no concept of a cancelled
+    order - so qty_filled is the quantity and status is "complete". Side
+    decides which of the two mutually exclusive price columns to read.
+
+    The exception is Angel's charge-only line: one per order, zero quantity,
+    zero price, no Trade ID. Those are recorded with status "charges_only" so
+    their brokerage counts toward the cost while they stay out of the trade
+    statistics.
     """
     rows: List[Dict] = []
     unmapped: Dict[str, int] = {}
@@ -216,6 +220,23 @@ def statement_to_ledger(
             amount = pd.to_numeric(trade.get(statement_column), errors="coerce")
             charges[ledger_column] = 0.0 if pd.isna(amount) else float(amount)
 
+        # Angel emits an extra line per order carrying a flat charge: zero
+        # quantity, zero price, no Trade ID, marked "Intraday". It is not an
+        # execution, but its brokerage is real and must still be counted - so
+        # it is recorded as a charges_only row, excluded from trade statistics
+        # while its charges roll into the totals.
+        trade_id = str(trade.get("Trade ID") or "").strip()
+        if trade_id.lower() in ("nan", "none"):
+            trade_id = ""
+        order_id = str(trade.get("Order ID") or "").strip()
+        charges_only = qty == 0 and price == 0
+
+        if charges_only and not trade_id:
+            # Without this the row's key falls back to the order id, which it
+            # shares with the fill for the same order - and one would silently
+            # overwrite the other during the merge.
+            trade_id = f"{order_id}-CHG"
+
         symbol, was_mapped = map_scrip(trade.get("Scrip/Contract"))
         if not was_mapped:
             unmapped[str(trade.get("Scrip/Contract")).strip()] = \
@@ -229,7 +250,7 @@ def statement_to_ledger(
             "order_source": HISTORICAL_SOURCE,
             "order_type": str(trade.get("Order Type") or "").upper(),
             "variety": "",
-            "status": "complete",
+            "status": "charges_only" if charges_only else "complete",
             "qty_ordered": qty,
             "qty_filled": qty,
             "limit_price": 0.0,
@@ -242,8 +263,8 @@ def statement_to_ledger(
             "producttype": str(trade.get("Order Type") or ""),
             "segment": str(trade.get("Segment") or ""),
             "ordertag": "",
-            "orderid": str(trade.get("Order ID") or "").strip(),
-            "tradeid": str(trade.get("Trade ID") or "").strip(),
+            "orderid": order_id,
+            "tradeid": trade_id,
             "uniqueorderid": "",
             "exchangeorderid": "",
             "fill_time": "",
@@ -255,6 +276,7 @@ def statement_to_ledger(
     summary = {
         "parsed": len(body),
         "imported": len(rows),
+        "charges_only": sum(1 for r in rows if r["status"] == "charges_only"),
         "skipped_before_cutoff": skipped_before_cutoff,
         "unmapped_scrips": unmapped,
     }

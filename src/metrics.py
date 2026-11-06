@@ -169,6 +169,7 @@ def compute_metrics(
         "orders_total": int(len(ledger)),
         "orders_filled": 0,
         "orders_cancelled_or_rejected": 0,
+        "charges_only_rows": 0,
         "buy_value": 0.0,
         "sell_value": 0.0,
         "net_invested": 0.0,
@@ -194,6 +195,11 @@ def compute_metrics(
     out["orders_filled"] = int(len(filled))
     out["orders_cancelled_or_rejected"] = int(
         ledger["status"].astype(str).str.lower().isin(["cancelled", "rejected"]).sum()
+    )
+    # Broker charge lines: real cost, not an execution. Counted so the row
+    # total on the report reconciles.
+    out["charges_only_rows"] = int(
+        (ledger["status"].astype(str).str.lower() == "charges_only").sum()
     )
     if filled.empty:
         return out
