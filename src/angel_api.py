@@ -127,6 +127,18 @@ def get_tradeable_symbols() -> List[Dict[str, str]]:
 
 # --- Core AngelAPI Class ---
 
+# Angel One stamps `ordertag` onto an order and echoes it back in the order
+# book, which is what lets the trade ledger tell a strategy order from one
+# placed by hand in the app. An untagged order is therefore not ours.
+# Kept in sync with TAG_TO_SOURCE in src/trade_log.py. Angel rejects tags that
+# are not short alphanumerics, so these stay uppercase and under 20 chars.
+ORDER_TAGS = {
+    "BUY": "SIPBUY",
+    "SELL": "TRAILSELL",
+    "SELL_STOPLOSS": "TRAILSL",
+}
+
+
 class AngelAPI:
     """
     A robust wrapper class for the Angel Broking (SmartConnect) API,
@@ -270,7 +282,8 @@ class AngelAPI:
             order_type: str,
             price: float,
             trigger: Optional[float],
-            remarks: Optional[str]
+            remarks: Optional[str],
+            order_tag: Optional[str] = None
     ) -> Dict[str, Any]:
         """Internal helper to construct and place the order via SmartAPI."""
         details = self._find_symbol_details(symbol)
@@ -295,7 +308,11 @@ class AngelAPI:
             "price": adjusted_price,
             "squareoff": "0",
             "triggerprice": trigger,
-            "quantity": qty
+            "quantity": qty,
+            # Attribution for the trade ledger. Defaults by side so an order
+            # placed through a path that forgets to pass a tag is still
+            # recognisable as ours rather than looking manual.
+            "ordertag": order_tag or ORDER_TAGS.get(side.upper(), ""),
         }
 
         try:
@@ -396,7 +413,8 @@ class AngelAPI:
             order_type=order_type,
             price=price,
             trigger=trigger,
-            remarks=remarks
+            remarks=remarks,
+            order_tag=ORDER_TAGS["BUY"],
         )
 
     def trail_and_place_sell_order(
@@ -480,7 +498,12 @@ class AngelAPI:
             order_type=order_type,
             price=price,
             trigger=trigger,
-            remarks=remarks
+            remarks=remarks,
+            # A stop-loss sell and a trailing-profit sell are both "SELL" but
+            # mean different things in the ledger.
+            order_tag=(ORDER_TAGS["SELL_STOPLOSS"]
+                       if "STOPLOSS" in (order_type or "").upper()
+                       else ORDER_TAGS["SELL"]),
         )
 
     def fetch_current_holdings_and_cash(self) -> Tuple[pd.DataFrame, float]:

@@ -45,5 +45,15 @@ module.exports = {
       out_file: path.join(ROOT, "logs", "pm2-bot-out.log"),
       error_file: path.join(ROOT, "logs", "pm2-bot-err.log"),
     },
+    {
+      // Records the day's trades after close (16:05 IST), regenerates
+      // trades/REPORT.md and pushes both to the private repo. Read-only
+      // against the broker - it never places an order.
+      ...common,
+      name: "trade-logger",
+      script: "trade_logger.py",
+      out_file: path.join(ROOT, "logs", "pm2-tradelog-out.log"),
+      error_file: path.join(ROOT, "logs", "pm2-tradelog-err.log"),
+    },
   ],
 };
