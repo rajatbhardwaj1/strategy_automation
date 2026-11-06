@@ -24,6 +24,104 @@ This project allows you to automatically execute trades based on predefined rule
 
 ---
 
+## **Trade record and performance reporting**
+
+A third process records every trade and publishes a readable P&L report.
+
+**👉 [`trades/REPORT.md`](trades/REPORT.md) — what this strategy has actually made.**
+Regenerated after every market close: XIRR, CAGR, realised and unrealised P&L,
+charges paid, and a per-ETF breakdown. Start there.
+
+[`trades/trades.csv`](trades/trades.csv) is the underlying ledger — one row per
+order with full detail: price, quantity, fill price, value, status, charges,
+broker order and trade ids.
+
+### Why it reads the broker's books
+
+The account is traded by hand as well as by the strategy, and Angel One's order
+book covers **every** order regardless of who placed it — the only way the
+record is complete. Each row is attributed in the `order_source` column:
+
+| `order_source` | Meaning |
+|---|---|
+| `STRATEGY_BUY` | Placed by the daily buy |
+| `STRATEGY_SELL` | Placed by the trailing-profit sell |
+| `STRATEGY_SELL_STOPLOSS` | Placed by the stop-loss sell |
+| `MANUAL_OR_UNTAGGED` | Placed by hand in the Angel One app |
+| `HISTORICAL_IMPORT` | Imported from a contract-note statement |
+
+Attribution comes from Angel's `ordertag`, which the strategy stamps on
+everything it places (`ORDER_TAGS` in [src/angel_api.py](src/angel_api.py)). An
+untagged order is one this code did not place — stated as such rather than
+guessed at from the order's shape.
+
+The ledger is **append-only** because `orderBook()` and `tradeBook()` are
+day-scoped: they return today and nothing else, so a day that is never
+recorded is gone for good.
+
+### Commands
+
+Everything runs from the repo root, through the venv.
+
+```bash
+./venv/bin/python trade_logger.py --once
+```
+Record today now, regenerate the report, commit and push. This is what the
+schedule runs.
+
+```bash
+./venv/bin/python trade_logger.py --report-only
+```
+Rebuild the report from the existing ledger. No broker write, no git.
+
+```bash
+./venv/bin/python trade_logger.py --once --no-push
+```
+Record but leave git alone — useful when testing.
+
+```bash
+./venv/bin/python trade_logger.py --import-statements trades/imports/FY2025-26.xlsx trades/imports/FY2026-27.csv --since 2025-10-01
+```
+Import Angel One **TradeBook And Charges** exports (`.csv` or `.xlsx`), which
+are the only source of history beyond today *and* of charges — the live API
+reports neither. Re-running is safe: rows are keyed on the broker's trade id,
+so overlapping statements merge rather than duplicate.
+
+```bash
+pm2 logs trade-logger
+pm2 restart trade-logger
+```
+
+### How it runs unattended
+
+The `trade-logger` pm2 app fires at **16:05 IST**, Mon–Fri — after the 15:30
+close and well clear of the 15:20 buy. Each run logs in read-only, merges new
+orders, regenerates the report, commits both files and pushes, then sends a
+Telegram summary. It never force-pushes: a conflicted rebase is abandoned and
+retried next run, because losing a day of report regeneration is recoverable
+and overwriting a commit is not.
+
+### Reading the numbers
+
+- **XIRR** is the headline. It is money-weighted, so a rupee added last week
+  is not credited with a year of growth — the only fair way to state a SIP's
+  return. CAGR is shown beside it for comparison and ignores timing.
+- **Net P&L** needs no lot matching: everything sold, plus the market value of
+  what is still held, minus everything bought, minus charges. Splitting it into
+  realised and unrealised does need matching, which is done **FIFO** (aligning
+  with Indian capital-gains treatment).
+- **Charges** — brokerage, GST, STT, SEBI fees, stamp duty — come off the P&L
+  and out of the XIRR cashflows. They are only known for trades imported from
+  contract notes, so recent automated trades show zero charges and the true
+  cost is slightly higher than reported.
+- A sell with no matching buy lot (because the ledger starts mid-history) is
+  reported as `unmatched_qty` rather than booked as pure profit.
+
+Raw statements live in `trades/imports/` and are **gitignored** — they carry
+the client code and duplicate what the ledger already holds.
+
+---
+
 ## **Deploying on EC2 (pm2)**
 
 Two long-running processes make up the deployment:

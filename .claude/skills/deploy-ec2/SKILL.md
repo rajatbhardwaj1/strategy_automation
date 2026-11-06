@@ -23,6 +23,7 @@ offer the read-only smoke test in step 6 instead.
 |---|---|---|
 | `strategy-scheduler` | `main.py` | Trailing sell every 10 min 09:20–15:20, daily buy 15:20, Mon–Fri |
 | `telegram-bot` | `run_bot.py` | Telegram commands (`/portfolio`, `/show_etfs`) via long polling |
+| `trade-logger` | `trade_logger.py` | Records the day's trades at 16:05, regenerates `trades/REPORT.md`, pushes both |
 
 Both must run with the **repo root as cwd** — every path in the code is
 relative to it (`src/config.yaml`, `logs/*.log`). `ecosystem.config.js` already
@@ -125,7 +126,51 @@ Then have the user send `/portfolio` and `/show_etfs` in Telegram. Those two
 commands exercise broker TOTP login, holdings fetch, yfinance and Telegram
 delivery — most of the stack, with no order placement.
 
-### 8. Prove the scheduler fires — `smoke_test_schedule.py`
+### 8. Set up the trade recorder
+
+`trade-logger` needs two things the other apps do not.
+
+**Git push access.** It commits `trades/trades.csv` and `trades/REPORT.md` and
+pushes them, so the box needs a deploy key with write access:
+
+```bash
+git -C ~/strategy_automation push --dry-run origin main   # must say "Everything up-to-date"
+```
+
+No git identity is needed — `src/git_sync.py` passes one per commit rather than
+writing to the box's config. If the dry run fails, add the box's
+`~/.ssh/id_ed25519.pub` as a **write-enabled** deploy key on the GitHub repo.
+
+**Confirm the repo is private** before enabling the push. The ledger is a
+financial record. Unauthenticated access must be refused:
+
+```bash
+GIT_TERMINAL_PROMPT=0 git ls-remote https://github.com/<owner>/<repo>.git HEAD
+```
+
+Then verify the whole cycle once, which is read-only against the broker:
+
+```bash
+cd ~/strategy_automation
+./venv/bin/python trade_logger.py --once --no-push   # merge + report, no git
+./venv/bin/python trade_logger.py --once             # the real thing
+pm2 start ecosystem.config.js --only trade-logger && pm2 save
+```
+
+To import historical broker statements (the only source of history beyond
+today, and of charges):
+
+```bash
+mkdir -p trades/imports   # gitignored: raw statements carry the client code
+./venv/bin/python trade_logger.py --import-statements trades/imports/*.xlsx trades/imports/*.csv --since 2025-10-01
+```
+
+Read the import summary. Any scrip it could not map to a ticker is listed —
+add it to `SCRIP_TO_SYMBOL` in `src/trade_import.py` and re-import (merging is
+idempotent, keyed on the broker's trade id). Leaving one unmapped splits an
+instrument in two and corrupts the FIFO matching.
+
+### 9. Prove the scheduler fires — `smoke_test_schedule.py`
 
 This is the sign-off step, and the stand-in for a live order test. The bundled
 `smoke_test_schedule.py` (next to this file) registers a job through the exact
@@ -217,6 +262,24 @@ Each of these broke a real deploy. `setup_ec2.sh` handles the first five.
 12. **Angel One order rejections land in `logs/<date>/app.log`**, written by
     SmartApi's own logzero handler — not in `logs/utils.log` where everything
     else goes. Check it when an order silently fails to appear.
+13. **`orderBook()` and `tradeBook()` are day-scoped.** They return today's
+    activity only, so the ledger is an archive and a missed day is
+    unrecoverable from the API. If `trade-logger` is down for a day, recover it
+    from a contract-note statement, not from the API.
+14. **`tradeBook()` returns `data: None`, not `[]`,** when there are no trades.
+15. **Angel's `.xlsx` statements truncate some scrip names at 20 characters**
+    while leaving others intact, so one ETF appears under two spellings in one
+    file (`NIP IND ETF GOLD BEES` and `NIP IND ETF GOLD BEE`). `map_scrip`
+    resolves a truncated name as a unique prefix of a known one. The `.csv`
+    export does not truncate.
+16. **Statements carry a charge-only line per order** — zero quantity, zero
+    price, no Trade ID, marked `Intraday`, carrying a flat brokerage. It is not
+    a trade; it is recorded with status `charges_only` so its cost counts while
+    it stays out of the trade statistics.
+17. **Logging in dumps `*_symbols.txt` exchange masters into the repo root.**
+    Gitignored; harmless.
+18. **The box pushes to the same branch you do.** Expect to `git pull --rebase`
+    locally after a trade-record commit lands. `git_sync` never force-pushes.
 
 ## Bot token in logs (fixed)
 
@@ -253,6 +316,14 @@ that. It needs the instance IP registered (step 4), or it returns AG7002. Point
 the user at it rather than running it.
 
 ## Operating
+
+```bash
+# Trade record and performance
+./venv/bin/python trade_logger.py --once           # record today, report, push
+./venv/bin/python trade_logger.py --report-only    # rebuild the report only
+./venv/bin/python trade_logger.py --once --no-push # record without touching git
+./venv/bin/python trade_logger.py --import-statements FILE... --since YYYY-MM-DD
+```
 
 ```bash
 pm2 status
