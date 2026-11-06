@@ -177,6 +177,17 @@ def test_truncated_xlsx_scrip_resolves_to_the_same_symbol_as_the_full_name():
     assert map_scrip("MOTILALAMC - MOREALT") == ("MOREALTY", True)
 
 
+def test_scrips_trading_under_a_different_ticker_than_their_amc_code():
+    """
+    Three scrips trade under a ticker unrelated to the AMC's own code. Getting
+    these wrong does not just mislabel a row - the holdings join fails and the
+    position reports as a total loss of its purchase price.
+    """
+    assert map_scrip("KOTAKMAMC - KOTAKMID50") == ("MIDCAP", True)
+    assert map_scrip("MIRAEAMC - MAFSETF") == ("BFSI", True)
+    assert map_scrip("ICICIPRAMC - ICICIBANKP") == ("PVTBANIETF", True)
+
+
 def test_ambiguous_prefix_is_left_unmapped_rather_than_guessed():
     # "KOTAKMAMC - KOTAK" prefixes KOTAKALPHA, KOTAKMID50 and KOTAKMNC.
     symbol, mapped = map_scrip("KOTAKMAMC - KOTAK")

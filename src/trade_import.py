@@ -74,10 +74,15 @@ SCRIP_TO_SYMBOL = {
     "MIRAEAMC - MIDSMALL": "MIDSMALL",
     "MIRAEAMC - SMALLCAP": "SMALLCAP",
     "TATAAML - TNIDETF": "TNIDETF",
-    "KOTAKMAMC - KOTAKMID50": "KOTAKMID50",
-    "MIRAEAMC - MAFSETF": "MAFSETF",
+    # These three trade under a different ticker than the AMC's own code, and
+    # the mapping is not guesswork: each one's net open quantity in the ledger
+    # matched the broker's holding exactly (189, 392, 196). Without them the
+    # holdings join fails and the position is reported as a total loss of its
+    # purchase price.
+    "KOTAKMAMC - KOTAKMID50": "MIDCAP",
+    "MIRAEAMC - MAFSETF": "BFSI",
     "MIRAEAMC - MAFANG": "MAFANG",
-    "ICICIPRAMC - ICICIBANKP": "ICICIBANKP",
+    "ICICIPRAMC - ICICIBANKP": "PVTBANIETF",
     "ICICI PR NIF LW VL 30": "LOWVOLIETF",
     "RELCAPAMC - NETFGILT": "LTGILTBEES",
     "RELCAPAMC-NETFSDL26": "NETFSDL26",
