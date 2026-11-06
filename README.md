@@ -65,9 +65,12 @@ pm2 restart ecosystem.config.js    # after a git pull
 pm2 stop strategy-scheduler        # halt trading without killing the bot
 ```
 
-Python logging writes to `logs/main.log`, `logs/run_bot.log` and
-`logs/utils.log`; pm2 only captures stdout/stderr and tracebacks, in
-`logs/pm2-*.log`. Check both when debugging.
+**Both processes log to `logs/utils.log`** — not to `logs/main.log` or
+`logs/run_bot.log`, despite what the `LOG_FILE` constants in `main.py` and
+`run_bot.py` suggest. `src/utils.py` calls `logging.basicConfig()` at import
+time, and since both entrypoints import it before configuring their own
+handler, the later `basicConfig()` calls are no-ops. pm2 separately captures
+stdout/stderr and hard crashes in `logs/pm2-*.log`; check both when debugging.
 
 ### Notes
 
