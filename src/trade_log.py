@@ -118,7 +118,10 @@ def ledger_key(row: Dict) -> str:
     """
     for field in ("tradeid", "uniqueorderid", "orderid"):
         value = str(row.get(field) or "").strip()
-        if value:
+        # A missing CSV cell round-trips as NaN, and str(NaN) is "nan" - which
+        # is truthy, so without this guard every reloaded row with no trade id
+        # collapses onto the same key and the ledger deduplicates itself away.
+        if value and value.lower() not in ("nan", "none", "<na>"):
             return value
     return "|".join(str(row.get(f) or "") for f in
                     ("date", "time", "symbol", "side", "qty_filled", "avg_fill_price"))
@@ -214,8 +217,9 @@ def load_ledger(path: str = LEDGER_PATH) -> pd.DataFrame:
     """Read the ledger, or an empty one shaped correctly if it does not exist."""
     if not os.path.exists(path):
         return pd.DataFrame(columns=LEDGER_COLUMNS)
-    ledger = pd.read_csv(path, dtype={"orderid": str, "uniqueorderid": str,
-                                      "exchangeorderid": str})
+    id_columns = ["orderid", "tradeid", "uniqueorderid", "exchangeorderid"]
+    ledger = pd.read_csv(path, dtype={column: str for column in id_columns},
+                         keep_default_na=False, na_values=[])
     # Tolerate a ledger written before a column existed.
     for column in LEDGER_COLUMNS:
         if column not in ledger.columns:
