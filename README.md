@@ -71,6 +71,11 @@ Python logging writes to `logs/main.log`, `logs/run_bot.log` and
 
 ### Notes
 
+- The pinned dependency set (`numpy 2.0.2`, `pandas 2.3.2`, `matplotlib 3.9.4`)
+  tops out at **cp312 wheels**. If the instance's system Python is newer —
+  Ubuntu 26.04 ships 3.14 — `setup_ec2.sh` provisions a standalone CPython
+  3.12 with `uv` for the venv and leaves the system interpreter alone, since
+  pip would otherwise try to build numpy and pandas from source.
 - A `t3.micro`/`t4g.small` is plenty, but give it **at least 2 GB of RAM or a
   swap file** — installing the `pandas`/`numpy`/`matplotlib` wheels can OOM a
   1 GB box.
