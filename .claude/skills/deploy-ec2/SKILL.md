@@ -78,6 +78,10 @@ Add the instance's public IP in the Angel One SmartAPI app settings. Use an
 **Elastic IP**: a stop/start changes the public IP and silently breaks trading
 again, in exactly the way that only surfaces at 15:20.
 
+The current deployment is Elastic IP **3.24.151.30** (associated 2026-11-06,
+replacing 3.25.140.52). Associating an EIP also changes the SSH target, so
+step 1 uses the same address.
+
 Verify from the box with a read, then confirm the registration separately —
 there is no read-only call that exercises the IP check:
 
