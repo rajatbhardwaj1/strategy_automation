@@ -62,13 +62,36 @@ chat), `strategy`, optional `llm`.
 sed -E 's/(^[[:space:]]*[A-Za-z_]+:[[:space:]]*).+/\1SET/' src/config.yaml
 ```
 
-### 4. Start under pm2
+### 4. Register the instance IP with Angel One
+
+**Order placement fails without this, while everything else looks fine.**
+Angel One's SmartAPI only accepts `placeOrder` from IPs registered on the
+account. Reads — login, holdings, order book — are not restricted, so
+`/portfolio` and `/show_etfs` work perfectly on an unregistered box and the
+deployment looks healthy right up to the first trade, which fails with:
+
+```
+AG7002: <ip> is not a registered IP, please check your registered IP.
+```
+
+Add the instance's public IP in the Angel One SmartAPI app settings. Use an
+**Elastic IP**: a stop/start changes the public IP and silently breaks trading
+again, in exactly the way that only surfaces at 15:20.
+
+Verify from the box with a read, then confirm the registration separately —
+there is no read-only call that exercises the IP check:
+
+```bash
+curl -s https://checkip.amazonaws.com    # the IP to register
+```
+
+### 5. Start under pm2
 
 ```bash
 pm2 start ecosystem.config.js
 ```
 
-### 5. Make it survive reboots — and verify it
+### 6. Make it survive reboots — and verify it
 
 ```bash
 pm2 save
@@ -86,7 +109,7 @@ pm2 kill && sudo systemctl start pm2-ubuntu && pm2 list
 Both apps should come back `online`. If they don't, `pm2 start
 ecosystem.config.js` recovers.
 
-### 6. Verify the stack (read-only)
+### 7. Verify the stack (read-only)
 
 ```bash
 pm2 list                      # both online, restarts=0
@@ -98,7 +121,7 @@ Then have the user send `/portfolio` and `/show_etfs` in Telegram. Those two
 commands exercise broker TOTP login, holdings fetch, yfinance and Telegram
 delivery — most of the stack, with no order placement.
 
-### 7. Prove the scheduler fires — `smoke_test_schedule.py`
+### 8. Prove the scheduler fires — `smoke_test_schedule.py`
 
 This is the sign-off step, and the stand-in for a live order test. The bundled
 `smoke_test_schedule.py` (next to this file) registers a job through the exact
@@ -180,6 +203,17 @@ Each of these broke a real deploy. `setup_ec2.sh` handles the first five.
    pandas/numpy/matplotlib wheels can OOM a 1 GB box.
 10. **`[I ... smartConnect:124] in pool` on stderr** is ordinary logzero
     chatter from SmartApi, not an error.
+11. **Never run the live tests on a deployed box.**
+    `test/test_angel_api.py::test_real_buy_order` places a real BUY order, and
+    it is the first test in the file; `test_trailing_profit` runs
+    `sell_order_processing` live. They are now marked `live` and deselected by
+    default, so a bare `pytest` is safe (23 offline tests, ~0.1s) — but never
+    pass `-m live` on a box holding real credentials. A run on 2026-11-06
+    attempted a 1-qty SILVERBEES-EQ buy; only the unregistered-IP rejection
+    stopped it.
+12. **Angel One order rejections land in `logs/<date>/app.log`**, written by
+    SmartApi's own logzero handler — not in `logs/utils.log` where everything
+    else goes. Check it when an order silently fails to appear.
 
 ## Bot token in logs (fixed)
 
