@@ -1,6 +1,6 @@
 # Trade record and performance
 
-Automatically regenerated after every market close. Last updated **07 Nov 2026, 00:18 IST**.
+Automatically regenerated after every market close. Last updated **07 Nov 2026, 00:22 IST**.
 
 
 ## Where it stands
@@ -58,7 +58,10 @@ Attribution comes from the `ordertag` the strategy stamps on every order it plac
 | HEALTHY | 6 | ₹6,633 | ₹7,083 | — | — | ₹+450 | ₹26 |
 | GOLDBEES | 11 | ₹17,209 | ₹10,258 | 63 | ₹7,321 | ₹+370 | ₹63 |
 | METALIETF | 1 | ₹6,754 | ₹0 | 561 | ₹7,113 | ₹+359 | ₹9 |
+| MIDCAP | 3 | ₹9,771 | ₹3,099 | 392 | ₹7,001 | ₹+329 | ₹22 |
+| PVTBANIETF | 2 | ₹5,317 | ₹0 | 189 | ₹5,623 | ₹+306 | ₹7 |
 | PHARMABEES | 2 | ₹4,506 | ₹4,803 | — | — | ₹+297 | ₹13 |
+| BFSI | 1 | ₹5,284 | ₹0 | 196 | ₹5,559 | ₹+274 | ₹7 |
 | MIDSMALL | 3 | ₹5,441 | ₹1,582 | 79 | ₹4,013 | ₹+154 | ₹19 |
 | SMALLCAP | 4 | ₹2,017 | ₹2,154 | — | — | ₹+137 | ₹18 |
 | MON100 | 3 | ₹1,178 | ₹1,297 | — | — | ₹+119 | ₹6 |
@@ -75,9 +78,6 @@ Attribution comes from the `ordertag` the strategy stamps on every order it plac
 | NETFSDL26 | 1 | ₹1,487 | ₹0 | — | — | ₹-1,487 | ₹6 |
 | HNGSNGBEES | 12 | ₹33,806 | ₹4,755 | 61 | ₹27,545 | ₹-1,506 | ₹69 |
 | CPSEETF | 10 | ₹34,926 | ₹690 | 357 | ₹32,580 | ₹-1,656 | ₹64 |
-| MAFSETF | 1 | ₹5,284 | ₹0 | — | — | ₹-5,284 | ₹7 |
-| ICICIBANKP | 2 | ₹5,317 | ₹0 | — | — | ₹-5,317 | ₹7 |
-| KOTAKMID50 | 3 | ₹9,771 | ₹3,099 | — | — | ₹-6,672 | ₹22 |
 
 ## Last 25 filled trades
 
