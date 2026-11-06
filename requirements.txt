@@ -17,6 +17,9 @@ idna==3.10
 importlib_resources==6.5.2
 iniconfig==2.1.0
 kiwisolver==1.4.7
+# Undeclared runtime dependency of smartapi-python 1.5.5: SmartApi/smartConnect.py
+# imports logzero but the package metadata omits it, so pip resolves without it.
+logzero==1.7.0
 matplotlib==3.9.4
 multitasking==0.0.12
 ./ShoonyaApi-py/dist/NorenRestApi-0.0.30-py2.py3-none-any.whl
