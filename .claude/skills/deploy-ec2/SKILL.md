@@ -1,12 +1,13 @@
 ---
 name: deploy-ec2
-description: Set up or re-deploy this SIP strategy bot on an EC2 instance under pm2, one shot. Use when bringing up a fresh instance, recovering a broken deploy, or verifying a running one. Covers python/venv, pm2, timezone, config, boot persistence and a read-only scheduling smoke test.
+description: Set up or re-deploy this SIP strategy bot on an EC2 instance under pm2, one shot, from a bare instance. Use when bringing up a new instance, recovering a broken deploy, or verifying a running one. Covers provisioning and swap, the write-enabled deploy key the private repo and trade logger need, python/venv, pm2 and boot persistence, timezone, Angel One IP registration, the trade recorder, log rotation, and a read-only scheduling smoke test.
 ---
 
 # Deploy the strategy bot on EC2 (pm2)
 
-Brings a freshly cloned repo to a running, reboot-surviving deployment, then
-verifies it without placing any orders.
+Takes a bare EC2 instance to a running, reboot-surviving deployment, then
+verifies it without placing any orders. Starts from nothing: the repo is
+private, so even cloning it needs a step.
 
 ## Scope
 
@@ -15,7 +16,7 @@ test the buy path, and it does not call `run_buy`, `run_trailing_sell`,
 `buy_order_processing` or `sell_order_processing`. Those reach
 `AngelAPI.placeOrder` and transact on a live account. If asked to test the
 real order path, say that is the user's own keystroke during market hours, and
-offer the read-only smoke test in step 6 instead.
+offer the read-only smoke test in step 11 instead.
 
 ## What runs
 
@@ -25,22 +26,74 @@ offer the read-only smoke test in step 6 instead.
 | `telegram-bot` | `run_bot.py` | Telegram commands (`/portfolio`, `/show_etfs`) via long polling |
 | `trade-logger` | `trade_logger.py` | Records the day's trades at 16:05, regenerates `trades/REPORT.md`, pushes both |
 
-Both must run with the **repo root as cwd** — every path in the code is
+All three must run with the **repo root as cwd** — every path in the code is
 relative to it (`src/config.yaml`, `logs/*.log`). `ecosystem.config.js` already
 pins `cwd` and the venv interpreter.
 
 ## Steps
 
-### 1. Connect
+### 1. Provision the instance
+
+Ubuntu 24.04 or 26.04, `t3.micro` or larger, in a region close to NSE latency-wise
+(`ap-south-1` is the obvious choice; this deployment happens to run in
+`ap-southeast-2`).
+
+**Attach an Elastic IP before going any further.** Angel One authorises order
+placement per IP (step 6), so a public IP that changes on stop/start silently
+breaks trading. Allocate and associate it first, then register that address.
+
+**Give it ≥2 GB of RAM, or add swap.** Installing the pandas/numpy/matplotlib
+wheels will OOM a 1 GB box part-way through, leaving a half-built venv:
+
+```bash
+free -h   # if total is under 2G, add swap:
+sudo fallocate -l 2G /swapfile && sudo chmod 600 /swapfile
+sudo mkswap /swapfile && sudo swapon /swapfile
+echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
+```
+
+Security group: inbound SSH (port 22) from your IP only. Nothing else — the
+Telegram bot long-polls, so no inbound ports and no webhook. Outbound HTTPS is
+all the app needs (Angel One, Yahoo Finance, Telegram, GitHub).
+
+### 2. Give the box repo access, and clone
+
+The repo is **private**, so `git clone` needs a key on the box. The
+`trade-logger` app also *pushes* (step 10), so the key must be write-enabled —
+a read-only deploy key brings everything up and then fails once a day at 16:05.
+
+On the instance:
+
+```bash
+ssh-keygen -t ed25519 -C "ec2-tradebot" -N "" -f ~/.ssh/id_ed25519
+cat ~/.ssh/id_ed25519.pub
+```
+
+Add that public key to the GitHub repo under **Settings → Deploy keys → Add
+deploy key**, and tick **Allow write access**. Then clone to the exact
+directory name the rest of this runbook uses — note the **underscore**, which
+differs from the hyphenated local checkout:
+
+```bash
+git clone git@github.com:<owner>/strategy_automation.git ~/strategy_automation
+cd ~/strategy_automation && git log --oneline -1
+```
+
+If the clone hangs on a host-key prompt, accept GitHub's key first:
+`ssh-keyscan github.com >> ~/.ssh/known_hosts`.
+
+### 3. Connect
 
 ```bash
 ssh -i tradebot_novapr.pem ubuntu@<INSTANCE_IP>
 ```
 
-The key lives at the repo root and must be mode `400`. Confirm the instance IP
-with the user — do not assume a previous one is still current.
+This is the operator's own key for reaching the box, separate from the deploy
+key generated in step 2. It lives at the root of the local checkout and must be
+mode `400`. Confirm the instance IP with the user — do not assume a previous
+one is still current, and note that associating an Elastic IP changes it.
 
-### 2. Run the setup script
+### 4. Run the setup script
 
 ```bash
 cd ~/strategy_automation && git pull && bash scripts/setup_ec2.sh
@@ -49,7 +102,7 @@ cd ~/strategy_automation && git pull && bash scripts/setup_ec2.sh
 Idempotent — safe to re-run after a partial failure or a `git pull`. It handles
 every trap in the next section. Read its output rather than assuming success.
 
-### 3. Fill in credentials
+### 5. Fill in credentials
 
 `src/config.yaml` is gitignored, so a fresh clone never has it. The script
 copies `src/config.example.yaml` to it at mode `600` and leaves an existing one
@@ -63,7 +116,7 @@ chat), `strategy`, optional `llm`.
 sed -E 's/(^[[:space:]]*[A-Za-z_]+:[[:space:]]*).+/\1SET/' src/config.yaml
 ```
 
-### 4. Register the instance IP with Angel One
+### 6. Register the instance IP with Angel One
 
 **Order placement fails without this, while everything else looks fine.**
 Angel One's SmartAPI only accepts `placeOrder` from IPs registered on the
@@ -81,7 +134,7 @@ again, in exactly the way that only surfaces at 15:20.
 
 The current deployment is Elastic IP **3.24.151.30** (associated 2026-11-06,
 replacing 3.25.140.52). Associating an EIP also changes the SSH target, so
-step 1 uses the same address.
+step 3 uses the same address.
 
 Verify from the box with a read, then confirm the registration separately —
 there is no read-only call that exercises the IP check:
@@ -90,13 +143,13 @@ there is no read-only call that exercises the IP check:
 curl -s https://checkip.amazonaws.com    # the IP to register
 ```
 
-### 5. Start under pm2
+### 7. Start under pm2
 
 ```bash
 pm2 start ecosystem.config.js
 ```
 
-### 6. Make it survive reboots — and verify it
+### 8. Make it survive reboots — and verify it
 
 ```bash
 pm2 save
@@ -114,7 +167,7 @@ pm2 kill && sudo systemctl start pm2-ubuntu && pm2 list
 Both apps should come back `online`. If they don't, `pm2 start
 ecosystem.config.js` recovers.
 
-### 7. Verify the stack (read-only)
+### 9. Verify the stack (read-only)
 
 ```bash
 pm2 list                      # both online, restarts=0
@@ -126,7 +179,7 @@ Then have the user send `/portfolio` and `/show_etfs` in Telegram. Those two
 commands exercise broker TOTP login, holdings fetch, yfinance and Telegram
 delivery — most of the stack, with no order placement.
 
-### 8. Set up the trade recorder
+### 10. Set up the trade recorder
 
 `trade-logger` needs two things the other apps do not.
 
@@ -170,7 +223,7 @@ add it to `SCRIP_TO_SYMBOL` in `src/trade_import.py` and re-import (merging is
 idempotent, keyed on the broker's trade id). Leaving one unmapped splits an
 instrument in two and corrupts the FIFO matching.
 
-### 9. Prove the scheduler fires — `smoke_test_schedule.py`
+### 11. Prove the scheduler fires — `smoke_test_schedule.py`
 
 This is the sign-off step, and the stand-in for a live order test. The bundled
 `smoke_test_schedule.py` (next to this file) registers a job through the exact
@@ -210,6 +263,53 @@ Clean up: `pm2 delete schedule-smoke`.
 
 Verified working on Ubuntu 26.04 at 2026-11-06 23:17:00 IST: job fired on the
 target minute, broker login succeeded, Telegram message delivered.
+
+### 12. Rotate the logs
+
+`logs/utils.log` has **no rotation and grows without bound** — every module
+logs there (see trap 7), and the bot polls Telegram every 10 seconds. Left
+alone it will eventually fill the disk and take all three apps down.
+
+```bash
+sudo tee /etc/logrotate.d/strategy-automation >/dev/null <<'CONF'
+/home/ubuntu/strategy_automation/logs/*.log {
+    weekly
+    rotate 8
+    compress
+    delaycompress
+    missingok
+    notifempty
+    copytruncate
+    create 0600 ubuntu ubuntu
+}
+CONF
+sudo logrotate --debug /etc/logrotate.d/strategy-automation   # dry run
+```
+
+`copytruncate` matters: the Python processes hold the file open and never
+reopen it, so a renamed file would leave them writing into a deleted inode and
+the live log would appear frozen. `create 0600` keeps the mode tight, because
+logs written before the httpx fix still contain the bot token.
+
+### Final checklist
+
+Everything green means done:
+
+```bash
+cd ~/strategy_automation
+timedatectl | head -1                      # IST
+./venv/bin/python --version                # 3.12.x
+pm2 list                                   # 3 apps online, restarts 0
+systemctl is-enabled pm2-ubuntu            # enabled
+./venv/bin/python -m pytest -q              # 58 passed, 12 deselected
+git status --porcelain --untracked-files=no # empty
+git push --dry-run origin main             # Everything up-to-date
+curl -s https://checkip.amazonaws.com      # matches the IP registered with Angel One
+ls trades/REPORT.md trades/trades.csv      # both present
+```
+
+Then have the user send `/portfolio` in Telegram, and confirm the tap-to-sort
+buttons respond.
 
 ## Traps this deployment has actually hit
 
@@ -312,7 +412,7 @@ cd ~/strategy_automation && ./venv/bin/python manual/place_test_buy_order.py
 
 Defaults to 1 SILVERBEES as a LIMIT at ₹250, below market so it rests unfilled
 rather than executing; `--symbol`, `--qty`, `--price`, `--order-type` override
-that. It needs the instance IP registered (step 4), or it returns AG7002. Point
+that. It needs the instance IP registered (step 6), or it returns AG7002. Point
 the user at it rather than running it.
 
 ## Operating
