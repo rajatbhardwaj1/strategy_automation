@@ -14,6 +14,14 @@ logging.basicConfig(
 
 logger = logging.getLogger(__name__)
 
+# python-telegram-bot issues every API call through httpx, whose INFO-level
+# request logging writes the full URL - which embeds the bot token - into the
+# log file on each poll. Silencing httpx keeps the token out of logs/*.log.
+# Set here rather than in the entrypoints because this module is imported by
+# both main.py and run_bot.py, so one place covers every telegram caller.
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("httpcore").setLevel(logging.WARNING)
+
 
 def load_config(section: str, path: str = "src/config.yaml") -> dict:
     """

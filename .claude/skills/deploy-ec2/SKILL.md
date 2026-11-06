@@ -181,18 +181,24 @@ Each of these broke a real deploy. `setup_ec2.sh` handles the first five.
 10. **`[I ... smartConnect:124] in pool` on stderr** is ordinary logzero
     chatter from SmartApi, not an error.
 
-## Known issue: bot token in logs
+## Bot token in logs (fixed)
 
-`python-telegram-bot`'s httpx logging runs at INFO, so every request writes the
-full bot token in cleartext into `logs/utils.log`, which grows unbounded. One
-line in `run_bot.py` stops it:
+`python-telegram-bot` calls the API through httpx, whose INFO request logging
+wrote the full bot token in cleartext into `logs/utils.log` on every poll.
+`src/telegram_utils.py` now sets the `httpx` and `httpcore` loggers to WARNING;
+it is the right place because both entrypoints import it, so one setting covers
+every telegram caller.
 
-```python
-logging.getLogger("httpx").setLevel(logging.WARNING)
+Logs written before that fix still contain the token. When bringing up a box
+that has older logs, `chmod 600 logs/*.log`, and treat a token that was exposed
+as worth regenerating in @BotFather.
+
+Still strip tokens whenever echoing logs anywhere, in case another library
+starts logging URLs:
+
+```bash
+sed -E 's#bot[0-9]+:[A-Za-z0-9_-]+#bot<REDACTED>#g'
 ```
-
-Not applied yet — raise it, don't silently change it. Always strip tokens when
-echoing logs: `sed -E 's#bot[0-9]+:[A-Za-z0-9_-]+#bot<REDACTED>#g'`.
 
 ## Operating
 
