@@ -219,3 +219,13 @@ __marimo__/
 # Raw broker statements: they carry the client code and duplicate what the
 # normalised ledger already records. trades/trades.csv is the record that ships.
 trades/imports/
+
+# The SmartAPI SDK dumps exchange symbol masters into the working directory on
+# login. Regenerated on demand, several MB, and not ours to version.
+BFO_symbols.txt
+BSE_symbols.txt
+CDS_symbols.txt
+MCX_symbols.txt
+NCX_symbols.txt
+NFO_symbols.txt
+NSE_symbols.txt
