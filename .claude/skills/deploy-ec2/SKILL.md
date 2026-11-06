@@ -203,14 +203,13 @@ Each of these broke a real deploy. `setup_ec2.sh` handles the first five.
    pandas/numpy/matplotlib wheels can OOM a 1 GB box.
 10. **`[I ... smartConnect:124] in pool` on stderr** is ordinary logzero
     chatter from SmartApi, not an error.
-11. **Never run the live tests on a deployed box.**
-    `test/test_angel_api.py::test_real_buy_order` places a real BUY order, and
-    it is the first test in the file; `test_trailing_profit` runs
-    `sell_order_processing` live. They are now marked `live` and deselected by
-    default, so a bare `pytest` is safe (23 offline tests, ~0.1s) — but never
-    pass `-m live` on a box holding real credentials. A run on 2026-11-06
-    attempted a 1-qty SILVERBEES-EQ buy; only the unregistered-IP rejection
-    stopped it.
+11. **Never run the live tests on a deployed box.** `test_trailing_profit`
+    runs `sell_order_processing` against the real account. Those modules are
+    marked `live` and deselected by default, so a bare `pytest` is safe (23
+    offline tests, ~0.1s) — but never pass `-m live` on a box holding real
+    credentials. A run on 2026-11-06 attempted a 1-qty SILVERBEES-EQ buy from
+    what was then `test_real_buy_order`; only the unregistered-IP rejection
+    stopped it. That script now lives in `manual/`, outside pytest's reach.
 12. **Angel One order rejections land in `logs/<date>/app.log`**, written by
     SmartApi's own logzero handler — not in `logs/utils.log` where everything
     else goes. Check it when an order silently fails to appear.
@@ -233,6 +232,21 @@ starts logging URLs:
 ```bash
 sed -E 's#bot[0-9]+:[A-Za-z0-9_-]+#bot<REDACTED>#g'
 ```
+
+## Placing a real test order
+
+Out of scope for this skill to run — it transacts, so it is the user's own
+keystroke. `manual/place_test_buy_order.py` exists for it, outside `test/` so
+pytest cannot collect it and behind a typed confirmation:
+
+```bash
+cd ~/strategy_automation && ./venv/bin/python manual/place_test_buy_order.py
+```
+
+Defaults to 1 SILVERBEES as a LIMIT at ₹250, below market so it rests unfilled
+rather than executing; `--symbol`, `--qty`, `--price`, `--order-type` override
+that. It needs the instance IP registered (step 4), or it returns AG7002. Point
+the user at it rather than running it.
 
 ## Operating
 
