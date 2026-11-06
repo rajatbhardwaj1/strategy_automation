@@ -5,6 +5,10 @@ from src.strategy import ETFStrategy
 from src.shoonya_api import ShoonyaAPI
 from src.utils import load_config
 
+# The strategy_instance fixture logs into the real broker, and the order
+# processing tests can place real orders. Deselected unless -m live is passed.
+pytestmark = pytest.mark.live
+
 # ---------------------------
 # Logging Setup
 # ---------------------------

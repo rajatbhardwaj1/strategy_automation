@@ -5,6 +5,9 @@ import time
 from src.utils import load_config
 from src.shoonya_api import ShoonyaAPI   # adjust if filename differs
 
+# Logs into the real Shoonya account. Deselected unless -m live is passed.
+pytestmark = pytest.mark.live
+
 
 # --- Logging Setup ---
 LOG_FILE = "strategy.log"

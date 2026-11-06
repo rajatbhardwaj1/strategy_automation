@@ -7,6 +7,10 @@ import time
 from src.utils import fetch_etf_data, fetch_all_etf_data
 from src.telegram_utils import send_telegram_message
 import pandas as pd
+
+# Hits yfinance and Telegram for real. Slow: a symbol with no data retries
+# 10 times with a 5s delay. Deselected unless -m network is passed.
+pytestmark = pytest.mark.network
 # --- Logging Setup ---
 LOG_FILE = "strategy.log"
 logging.basicConfig(

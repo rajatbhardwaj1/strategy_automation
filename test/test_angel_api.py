@@ -4,6 +4,12 @@ from src.strategy import ETFStrategy, identify_buy_signals
 from src.utils import load_config
 from src.utils import fetch_all_etf_data, format_buy_signal_message
 from src.telegram_utils import send_telegram_message
+import pytest
+
+# Every test here logs into the real Angel One account with the
+# credentials in src/config.yaml, and test_real_buy_order places an actual
+# BUY order. Deselected unless -m live is passed.
+pytestmark = pytest.mark.live
 
 
 def test_real_buy_order():
@@ -106,7 +112,12 @@ def test_current_signals():
     print(etfs_to_buy)
 
 
-def test_get_active_sell_orders():
+def test_get_active_sell_orders(tmp_path):
+    """
+    Writes the fetched order book to tmp_path, not the repo root: the previous
+    "sell_orders.csv" target is a tracked file, so a run would overwrite it
+    with whatever this account happens to return and dirty the working tree.
+    """
     creds = load_config(section="trading")
 
     api = AngelAPI(
@@ -122,5 +133,6 @@ def test_get_active_sell_orders():
     strategy = ETFStrategy(api, strategy_config)
 
     sellorders = api._get_active_sell_orders("SILVERBEES")
-    sellorders.to_csv("sell_orders.csv", index=False)
-    print("Saved to sell_orders.csv")
+    out = tmp_path / "sell_orders.csv"
+    sellorders.to_csv(out, index=False)
+    print(f"Saved to {out}")
