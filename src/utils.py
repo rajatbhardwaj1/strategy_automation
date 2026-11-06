@@ -197,6 +197,76 @@ def format_etf_list_message(
     )
 
 
+def sort_etf_snapshot(
+    etf_df: pd.DataFrame,
+    holdings_df: Optional[pd.DataFrame] = None,
+    key: str = "pct_diff",
+    descending: bool = False,
+    profit_threshold: float = THRESHOLD_PROFIT,
+) -> pd.DataFrame:
+    """
+    Reorder the ETF snapshot rows by one column, for the tap-to-sort buttons
+    on /show_etfs.
+
+    This only reorders rows - format_etf_list_message still derives every
+    displayed cell itself, so rendering and sorting cannot disagree.
+
+    "held_qty", "bought" and "sell_at" are position columns that live in
+    holdings_df rather than etf_df, so they are looked up per symbol the same
+    way the formatter does. ETFs with no position have no value for them and
+    sort last in both directions (na_position="last"), which keeps the held
+    ETFs - the only ones those columns say anything about - together at the
+    top. The sort is stable, so ties keep the incoming %diff ordering.
+    """
+    if etf_df.empty:
+        return etf_df
+
+    df = etf_df.copy()
+
+    if key in ("held_qty", "bought", "sell_at"):
+        positions: Dict[str, Dict[str, float]] = {}
+        if holdings_df is not None and not holdings_df.empty:
+            for _, row in holdings_df.iterrows():
+                qty = float(row["held_qty"])
+                buy_price = float(row["buy_price"])
+                positions[row["etf"]] = {
+                    "held_qty": qty,
+                    "bought": qty * buy_price,
+                    "sell_at": buy_price * (1 + profit_threshold / 100),
+                }
+        df["_sort"] = df["etf"].map(lambda sym: positions.get(sym, {}).get(key, float("nan")))
+    elif key in df.columns:
+        df["_sort"] = df[key]
+    else:
+        logger.warning(f"Unknown ETF sort key '{key}', leaving order unchanged.")
+        return etf_df
+
+    df = df.sort_values(
+        "_sort", ascending=not descending, na_position="last", kind="mergesort"
+    )
+    return df.drop(columns="_sort").reset_index(drop=True)
+
+
+def sort_holdings(
+    holdings_df: pd.DataFrame,
+    key: str = "pct_diff",
+    descending: bool = True,
+) -> pd.DataFrame:
+    """
+    Reorder holdings by one column, for the tap-to-sort buttons on /portfolio.
+    Stable, so ties keep the broker's incoming order. The totals in
+    format_portfolio_message are order-independent.
+    """
+    if holdings_df.empty:
+        return holdings_df
+    if key not in holdings_df.columns:
+        logger.warning(f"Unknown holdings sort key '{key}', leaving order unchanged.")
+        return holdings_df
+    return holdings_df.sort_values(
+        key, ascending=not descending, na_position="last", kind="mergesort"
+    ).reset_index(drop=True)
+
+
 def format_portfolio_message(holdings_df: pd.DataFrame, profit_threshold: float = 6.5) -> str:
     """
     Format current holdings as a monospaced table, including the sell
