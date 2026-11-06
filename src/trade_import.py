@@ -78,6 +78,11 @@ SCRIP_TO_SYMBOL = {
     "MIRAEAMC - MAFSETF": "MAFSETF",
     "MIRAEAMC - MAFANG": "MAFANG",
     "ICICIPRAMC - ICICIBANKP": "ICICIBANKP",
+    "ICICI PR NIF LW VL 30": "LOWVOLIETF",
+    "RELCAPAMC - NETFGILT": "LTGILTBEES",
+    "RELCAPAMC-NETFSDL26": "NETFSDL26",
+    "KOTAKMAMC - KOTAKMNC": "KOTAKMNC",
+    "NIPPONAMC - NETFDIVOPP": "NETFDIVOPP",
 }
 
 
@@ -85,16 +90,32 @@ def map_scrip(scrip: str) -> Tuple[str, bool]:
     """
     Resolve a statement scrip name to a ticker. Returns (symbol, was_mapped).
 
-    Unmapped names fall back to the segment after " - " (the AMC's own short
-    code) or the whole name, uppercased. That keeps the same scrip consistent
-    with itself across statements - which is what FIFO matching needs - while
-    was_mapped=False surfaces it for review.
+    Angel's .xlsx export truncates some scrip names at 20 characters while
+    leaving others intact, so one instrument appears under two spellings in the
+    same file - "NIP IND ETF GOLD BEES" and "NIP IND ETF GOLD BEE". Left
+    as-is that splits the instrument in two and FIFO matches sells against the
+    wrong lots, so a name that is not an exact match is resolved as a prefix of
+    a known one. The match must be unique: an ambiguous prefix is left unmapped
+    rather than resolved to a coin flip.
+
+    Anything still unresolved falls back to the segment after " - " (the AMC's
+    own short code) or the whole name. That at least keeps the scrip consistent
+    with itself, while was_mapped=False surfaces it for review.
     """
     cleaned = " ".join(str(scrip or "").split()).strip()
     if not cleaned:
         return "", False
     if cleaned in SCRIP_TO_SYMBOL:
         return SCRIP_TO_SYMBOL[cleaned], True
+
+    candidates = {symbol for name, symbol in SCRIP_TO_SYMBOL.items()
+                  if name.startswith(cleaned)}
+    if len(candidates) == 1:
+        return candidates.pop(), True
+    if len(candidates) > 1:
+        logger.warning("Scrip %r is an ambiguous prefix of %d known names; "
+                       "leaving unmapped.", cleaned, len(candidates))
+
     fallback = cleaned.split(" - ")[-1] if " - " in cleaned else cleaned
     return fallback.upper().replace(" ", ""), False
 

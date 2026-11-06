@@ -257,8 +257,11 @@ def merge_into_ledger(
     updated = len(incoming_keys & known)
 
     # Last write wins for a key already present; concat-then-drop keeps the
-    # new row because it is later in the frame.
-    merged = pd.concat([existing, new_rows], ignore_index=True)
+    # new row because it is later in the frame. An empty `existing` is skipped
+    # rather than concatenated, since concatenating all-NA frames is
+    # deprecated and changes the resulting dtypes.
+    frames = [frame for frame in (existing, new_rows) if not frame.empty]
+    merged = pd.concat(frames, ignore_index=True) if len(frames) > 1 else frames[0].copy()
     merged = merged.drop_duplicates(subset="_key", keep="last")
     merged = merged.drop(columns="_key")
 

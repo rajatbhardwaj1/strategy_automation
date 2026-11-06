@@ -164,6 +164,25 @@ def test_scrip_mapping_resolves_known_names_and_flags_the_rest():
     assert map_scrip("SOMEAMC - NEWTHING") == ("NEWTHING", False)
 
 
+def test_truncated_xlsx_scrip_resolves_to_the_same_symbol_as_the_full_name():
+    """
+    Angel's .xlsx export truncates some scrip names at 20 characters and leaves
+    others intact, so the same ETF appears twice in one file. Both spellings
+    must land on one symbol or FIFO matches sells against the wrong lots.
+    """
+    assert map_scrip("NIP IND ETF GOLD BEES") == ("GOLDBEES", True)
+    assert map_scrip("NIP IND ETF GOLD BEE") == ("GOLDBEES", True)
+    assert map_scrip("NIPPONAMC - NETFSILVER") == ("SILVERBEES", True)
+    assert map_scrip("NIPPONAMC - NETFSILV") == ("SILVERBEES", True)
+    assert map_scrip("MOTILALAMC - MOREALT") == ("MOREALTY", True)
+
+
+def test_ambiguous_prefix_is_left_unmapped_rather_than_guessed():
+    # "KOTAKMAMC - KOTAK" prefixes KOTAKALPHA, KOTAKMID50 and KOTAKMNC.
+    symbol, mapped = map_scrip("KOTAKMAMC - KOTAK")
+    assert mapped is False
+
+
 def _statement_rows():
     return pd.DataFrame([
         {"Scrip/Contract": "NIP IND ETF IT", "Buy/Sell": "Buy", "Buy Price": 31.37,
