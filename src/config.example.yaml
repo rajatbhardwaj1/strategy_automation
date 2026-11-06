@@ -1,0 +1,48 @@
+# Template for src/config.yaml (gitignored - it holds live credentials).
+#
+#   cp src/config.example.yaml src/config.yaml && chmod 600 src/config.yaml
+#
+# Loaded section-by-section via src.utils.load_config(section=...).
+
+# Legacy Shoonya/Finvasia broker credentials. Not used by the Angel One path
+# that main.py and run_bot.py run on; leave blank unless you use ShoonyaAPI.
+trading_shoonya:
+  uid:
+  password:
+  api_key:
+  totp_secret:
+  imei:
+  vendor_key:
+
+# Angel One SmartAPI - this is the live trading account.
+# totp_secret is the base32 TOTP seed from Angel One's 2FA setup (not a code).
+trading:
+  uid: YOUR_ANGEL_CLIENT_ID
+  password: YOUR_ANGEL_MPIN
+  totp_secret: YOUR_ANGEL_TOTP_SECRET
+  api_key: YOUR_SMARTAPI_KEY
+
+# bot_token from @BotFather; chat_id is your own numeric Telegram id - the bot
+# only answers that one chat and all alerts go there.
+telegram:
+  bot_token: YOUR_TELEGRAM_BOT_TOKEN
+  chat_id: YOUR_TELEGRAM_CHAT_ID
+
+# Strategy knobs. These are the current production values.
+strategy:
+  dma_window: 20
+  profit_threshold: 6.5
+  trailing_stop: 0.5
+  max_daily_buys: 1
+  avg_down_threshold: 4.0
+  hydration: 50000
+  hydration_increment: 0
+  buy_divisor: 40
+
+# Optional. Groq free tier: https://console.groq.com/keys
+# OpenAI-compatible, so base_url/model can be repointed at Mistral,
+# Cerebras, OpenRouter or NVIDIA without any code change.
+llm:
+  api_key: YOUR_LLM_API_KEY
+  base_url: https://api.groq.com/openai/v1
+  model: openai/gpt-oss-120b

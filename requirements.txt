@@ -19,7 +19,7 @@ iniconfig==2.1.0
 kiwisolver==1.4.7
 matplotlib==3.9.4
 multitasking==0.0.12
-NorenRestApi @ file:///Users/rajatbhardwaj.rajat/Documents/personal/finances/strategy-automation/ShoonyaApi-py/dist/NorenRestApi-0.0.30-py2.py3-none-any.whl#sha256=ec99bd4170285b2118254b806adfcc733609e84a049876df4fba14c0876311d7
+./ShoonyaApi-py/dist/NorenRestApi-0.0.30-py2.py3-none-any.whl
 numpy==2.0.2
 numpy-financial==1.0.0
 packaging==25.0

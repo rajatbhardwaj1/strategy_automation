@@ -1,5 +1,6 @@
 # Credentials
 src/*.yaml
+!src/config.example.yaml
 *.pem
 
 #For local, using mac, cannot send messages on telegram
