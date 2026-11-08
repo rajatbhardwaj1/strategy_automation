@@ -105,6 +105,44 @@ def run_buy():
 # ----------------------------
 # Helper: Generate sell times every 10 min
 # ----------------------------
+# --- One-off exchange sessions outside the Mon-Fri calendar -----------------
+# NSE runs Diwali Muhurat trading on a day the weekday schedule below never
+# covers (2026-11-08 is a Sunday), so it needs explicit registration.
+#
+# SELL ONLY. No buy job is registered for these sessions: the daily buy sizes
+# itself off net worth and would open a fresh position into a thin, one-hour
+# session. Trailing sells only ever close positions that have already cleared
+# the profit threshold, so the downside of running them is bounded.
+#
+# Sources disagreed on whether continuous trading ends at 15:30 or 15:40 IST,
+# so the last fire is 15:20 - inside the earlier of the two, and the same
+# 10-minute margin before the close that the normal weekday schedule uses.
+#
+# Each job is guarded on the date, because schedule.every().day.at() would
+# otherwise keep firing every day forever. Remove the entry once the session
+# has passed.
+SPECIAL_SELL_SESSIONS = [
+    {
+        "name": "Diwali Muhurat 2026 (Samvat 2083)",
+        "date": "2026-11-08",
+        "start": dt_time(14, 30),
+        "end": dt_time(15, 20),
+    },
+]
+
+
+def run_trailing_sell_for_session(session):
+    """
+    Trailing sell for a one-off session, gated on today actually being that
+    date. Returns without touching the broker on any other day.
+    """
+    today = datetime.now().date().isoformat()
+    if today != session["date"]:
+        return
+    logger.info(f"=== Special session sell: {session['name']} ({today}) ===")
+    run_trailing_sell()
+
+
 def generate_trailing_sell_times(start_time=dt_time(9, 20), end_time=dt_time(15, 20), interval_minutes=10):
     """Generate HH:MM strings between start and end at given interval."""
     times = []
@@ -129,6 +167,16 @@ def run_scheduler():
     # Daily buy at 15:20 Mon-Fri
     for day in ["monday", "tuesday", "wednesday", "thursday", "friday"]:
         getattr(schedule.every(), day).at("15:20").do(run_buy)
+
+    # One-off sessions: trailing sells only, never a buy.
+    for session in SPECIAL_SELL_SESSIONS:
+        times = generate_trailing_sell_times(session["start"], session["end"])
+        for t in times:
+            schedule.every().day.at(t).do(run_trailing_sell_for_session, session=session)
+        logger.info(
+            f"Registered {len(times)} sell-only slots for {session['name']} "
+            f"on {session['date']} ({times[0]}-{times[-1]} IST)."
+        )
 
     logger.info("=== Strategy Scheduler Started ===")
     # ---------------
