@@ -1,6 +1,6 @@
 # Trade record and performance
 
-Automatically regenerated after every market close. Last updated **09 Nov 2026, 16:05 IST**.
+Automatically regenerated after every market close. Last updated **10 Nov 2026, 16:05 IST**.
 
 
 ## Where it stands
@@ -9,7 +9,7 @@ Automatically regenerated after every market close. Last updated **09 Nov 2026, 
 
 | Metric | Value | What it means |
 | :--- | ---: | :--- |
-| **XIRR** | **+12.8%** | Annualised return that accounts for *when* each rupee went in. The headline number for a SIP. |
+| **XIRR** | **+12.7%** | Annualised return that accounts for *when* each rupee went in. The headline number for a SIP. |
 | CAGR | +2.6% | Annualised growth ignoring contribution timing. Shown for comparison; XIRR is the more honest figure here. |
 | Net P&L after charges | ₹+14,403 | Everything sold, plus what is still held, minus everything bought and all brokerage and taxes. |
 | Gross P&L | ₹+15,915 | The same, before charges. |
@@ -30,7 +30,7 @@ Automatically regenerated after every market close. Last updated **09 Nov 2026, 
 | Distinct ETFs traded | 31 |
 | Total bought | ₹593,116 |
 | Total sold | ₹379,727 |
-| Idle cash | ₹106,044 |
+| Idle cash | ₹106,115 |
 
 ## Who placed each order
 
