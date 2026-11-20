@@ -1,36 +1,36 @@
 # Trade record and performance
 
-Automatically regenerated after every market close. Last updated **19 Nov 2026, 16:05 IST**.
+Automatically regenerated after every market close. Last updated **20 Nov 2026, 16:05 IST**.
 
 
 ## Where it stands
 
-**Up ₹4,118** after charges.
+**Up ₹497** after charges.
 
 | Metric | Value | What it means |
 | :--- | ---: | :--- |
-| **XIRR** | **+3.5%** | Annualised return that accounts for *when* each rupee went in. The headline number for a SIP. |
-| CAGR | +0.8% | Annualised growth ignoring contribution timing. Shown for comparison; XIRR is the more honest figure here. |
-| Net P&L after charges | ₹+4,118 | Everything sold, plus what is still held, minus everything bought and all brokerage and taxes. |
-| Gross P&L | ₹+5,630 | The same, before charges. |
+| **XIRR** | **+0.5%** | Annualised return that accounts for *when* each rupee went in. The headline number for a SIP. |
+| CAGR | +0.3% | Annualised growth ignoring contribution timing. Shown for comparison; XIRR is the more honest figure here. |
+| Net P&L after charges | ₹+497 | Everything sold, plus what is still held, minus everything bought and all brokerage and taxes. |
+| Gross P&L | ₹+2,009 | The same, before charges. |
 | — of which realised | ₹+28,031 | Locked in by selling, matched FIFO (oldest lots first, as Indian capital-gains treatment assumes). |
-| — of which unrealised | ₹-22,401 | Still on the books, moving with the market. |
+| — of which unrealised | ₹-26,022 | Still on the books, moving with the market. |
 | Charges paid | ₹1,512 | Brokerage, GST, STT, SEBI fees, stamp duty. Known only for trades imported from contract notes. |
-| Currently invested | ₹241,922 | Market value of holdings right now. |
-| Net deployed | ₹236,293 | Total bought minus total sold. |
+| Currently invested | ₹245,024 | Market value of holdings right now. |
+| Net deployed | ₹243,015 | Total bought minus total sold. |
 
 ## Activity
 
 |  | Value |
 | :--- | ---: |
-| Period covered | 2025-10-29 → 2026-11-19 |
-| Filled orders | 255 |
+| Period covered | 2025-10-29 → 2026-11-20 |
+| Filled orders | 256 |
 | Cancelled or rejected | 1 |
 | Charge-only lines | 16 |
 | Distinct ETFs traded | 31 |
-| Total bought | ₹641,201 |
+| Total bought | ₹647,923 |
 | Total sold | ₹404,908 |
-| Idle cash | ₹83,117 |
+| Idle cash | ₹76,385 |
 
 ## Who placed each order
 
@@ -39,8 +39,8 @@ Attribution comes from the `ordertag` the strategy stamps on every order it plac
 | Source | Orders |
 | :--- | ---: |
 | Imported from broker statements | 258 |
+| Strategy — daily buy | 8 |
 | Manual (placed in the app) | 7 |
-| Strategy — daily buy | 7 |
 
 ## By ETF
 
@@ -48,42 +48,43 @@ Attribution comes from the `ordertag` the strategy stamps on every order it plac
 
 | ETF | Trades | Bought | Sold | Held | Value now | Net P&L | Charges |
 | :--- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| ITBEES | 38 | ₹97,674 | ₹97,593 | 182 | ₹6,255 | ₹+6,174 | ₹220 |
+| ITBEES | 38 | ₹97,674 | ₹97,593 | 182 | ₹6,341 | ₹+6,260 | ₹220 |
 | MOREALTY | 32 | ₹64,963 | ₹70,262 | — | — | ₹+5,299 | ₹207 |
 | TNIDETF | 9 | ₹25,001 | ₹26,775 | — | — | ₹+1,774 | ₹77 |
 | AUTOBEES | 8 | ₹24,021 | ₹25,580 | — | — | ₹+1,559 | ₹45 |
 | PSUBNKBEES | 10 | ₹17,609 | ₹18,862 | — | — | ₹+1,254 | ₹60 |
 | CONSUMBEES | 4 | ₹13,190 | ₹14,108 | — | — | ₹+918 | ₹18 |
-| MOVALUE | 8 | ₹13,405 | ₹10,516 | 31 | ₹3,565 | ₹+676 | ₹47 |
+| MOVALUE | 8 | ₹13,405 | ₹10,516 | 31 | ₹3,592 | ₹+703 | ₹47 |
 | INFRABEES | 5 | ₹8,106 | ₹8,709 | — | — | ₹+603 | ₹26 |
+| MIDCAP | 3 | ₹9,771 | ₹3,099 | 392 | ₹7,178 | ₹+506 | ₹22 |
 | HEALTHY | 6 | ₹6,633 | ₹7,083 | — | — | ₹+450 | ₹26 |
 | METALIETF | 2 | ₹6,754 | ₹7,192 | — | — | ₹+438 | ₹9 |
-| MIDCAP | 3 | ₹9,771 | ₹3,099 | 392 | ₹7,080 | ₹+408 | ₹22 |
 | BFSI | 2 | ₹5,284 | ₹5,662 | — | — | ₹+378 | ₹7 |
 | PVTBANIETF | 3 | ₹5,317 | ₹5,651 | — | — | ₹+335 | ₹7 |
 | PHARMABEES | 2 | ₹4,506 | ₹4,803 | — | — | ₹+297 | ₹13 |
-| HDFCSML250 | 3 | ₹8,039 | ₹732 | 42 | ₹7,555 | ₹+248 | ₹16 |
-| MIDSMALL | 3 | ₹5,441 | ₹1,582 | 79 | ₹4,089 | ₹+230 | ₹19 |
+| MIDSMALL | 3 | ₹5,441 | ₹1,582 | 79 | ₹4,077 | ₹+218 | ₹19 |
+| HDFCSML250 | 3 | ₹8,039 | ₹732 | 42 | ₹7,523 | ₹+216 | ₹16 |
+| MOM100 | 3 | ₹6,970 | ₹0 | 106 | ₹7,123 | ₹+154 | ₹9 |
 | SMALLCAP | 4 | ₹2,017 | ₹2,154 | — | — | ₹+137 | ₹18 |
-| FMCGIETF | 5 | ₹21,391 | ₹0 | 412 | ₹21,511 | ₹+119 | ₹37 |
-| MOM100 | 3 | ₹6,970 | ₹0 | 106 | ₹7,088 | ₹+119 | ₹9 |
 | MON100 | 3 | ₹1,178 | ₹1,297 | — | — | ₹+119 | ₹6 |
 | MAFANG | 3 | ₹1,331 | ₹1,438 | — | — | ₹+107 | ₹6 |
-| ALPHA | 10 | ₹8,503 | ₹1,611 | 137 | ₹6,991 | ₹+100 | ₹35 |
-| ICICIB22 | 2 | ₹8,815 | ₹0 | 74 | ₹8,788 | ₹-27 | ₹14 |
-| MOM30IETF | 1 | ₹5,199 | ₹0 | 166 | ₹5,104 | ₹-95 | ₹7 |
-| MODEFENCE | 1 | ₹6,939 | ₹0 | 69 | ₹6,828 | ₹-112 | ₹9 |
-| COMMOIETF | 1 | ₹3,598 | ₹0 | 35 | ₹3,424 | ₹-174 | ₹7 |
-| GOLDBEES | 12 | ₹24,313 | ₹10,258 | 126 | ₹13,394 | ₹-661 | ₹63 |
+| FMCGIETF | 5 | ₹21,391 | ₹0 | 412 | ₹21,490 | ₹+99 | ₹37 |
+| ALPHA | 10 | ₹8,503 | ₹1,611 | 137 | ₹6,958 | ₹+67 | ₹35 |
+| ICICIB22 | 2 | ₹8,815 | ₹0 | 74 | ₹8,777 | ₹-38 | ₹14 |
+| MOM30IETF | 1 | ₹5,199 | ₹0 | 166 | ₹5,070 | ₹-129 | ₹7 |
+| MODEFENCE | 1 | ₹6,939 | ₹0 | 69 | ₹6,783 | ₹-157 | ₹9 |
+| COMMOIETF | 1 | ₹3,598 | ₹0 | 35 | ₹3,438 | ₹-161 | ₹7 |
+| GOLDBEES | 12 | ₹24,313 | ₹10,258 | 126 | ₹12,878 | ₹-1,176 | ₹63 |
 | NETFSDL26 | 1 | ₹1,487 | ₹0 | — | — | ₹-1,487 | ₹6 |
-| CPSEETF | 10 | ₹34,926 | ₹690 | 357 | ₹32,658 | ₹-1,578 | ₹64 |
-| HNGSNGBEES | 12 | ₹33,806 | ₹4,755 | 61 | ₹25,839 | ₹-3,212 | ₹69 |
-| SILVERBEES | 49 | ₹165,013 | ₹74,495 | 535 | ₹81,753 | ₹-8,765 | ₹277 |
+| CPSEETF | 10 | ₹34,926 | ₹690 | 357 | ₹32,626 | ₹-1,610 | ₹64 |
+| HNGSNGBEES | 12 | ₹33,806 | ₹4,755 | 61 | ₹25,891 | ₹-3,160 | ₹69 |
+| SILVERBEES | 50 | ₹171,736 | ₹74,495 | 581 | ₹85,279 | ₹-11,962 | ₹277 |
 
 ## Last 25 filled trades
 
 | Date | ETF | Side | Qty | Price | Value | Source |
 | :--- | :--- | :--- | ---: | ---: | ---: | :--- |
+| 2026-11-20 | SILVERBEES | BUY | 46 | 146.14 | ₹6,722 | Strategy Buy |
 | 2026-11-19 | SILVERBEES | BUY | 45 | 152.70 | ₹6,872 | Strategy Buy |
 | 2026-11-18 | SILVERBEES | BUY | 44 | 155.78 | ₹6,854 | Strategy Buy |
 | 2026-11-17 | SILVERBEES | BUY | 43 | 160.85 | ₹6,917 | Strategy Buy |
@@ -108,7 +109,6 @@ Attribution comes from the `ordertag` the strategy stamps on every order it plac
 | 2026-11-03 | SILVERBEES | BUY | 2 | 167.12 | ₹334 | Historical Import |
 | 2026-11-02 | SILVERBEES | BUY | 46 | 171.45 | ₹7,887 | Historical Import |
 | 2026-10-23 | ALPHA | BUY | 1 | 47.57 | ₹48 | Historical Import |
-| 2026-10-22 | SILVERBEES | BUY | 16 | 190.02 | ₹3,040 | Historical Import |
 
 ## How to read this
 
@@ -138,4 +138,4 @@ charges and the true figure is slightly higher.
 ---
 
 *Generated by `trade_logger.py`. Source of truth is
-[`trades/trades.csv`](trades.csv) — 272 order rows.*
+[`trades/trades.csv`](trades.csv) — 273 order rows.*
